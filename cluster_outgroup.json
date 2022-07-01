@@ -1,0 +1,45 @@
+{
+   "__default__":{
+      "queue":"core",
+      "time":"5:00:00",
+      "partition":"core",
+      "name":"{rule}.{wildcards}",
+      "output":"logs/slurm/{rule}.{wildcards}.out",
+      "error":"logs/slurm/{rule}.{wildcards}.err",
+      "n":1,
+      "C":"mem128GB",
+   },
+   "bwa":{
+      "time":"2-00:00:00",
+      "n":20,
+      "C" :"mem256GB"
+   },
+   "flagstat":{
+      "time":"5:00:00",
+      "n":1
+   },
+   "mkdupl":{
+      "time":"1-00:00:00",
+      "n":10
+   },
+   "haplotype_caller":{
+      "time":"2-00:00:00",
+      "n":20
+   },
+   "AllsitesGenotypeGVCFs":{
+      "time":"2-00:00:00",
+      "n":20
+   },
+   "zip":{
+      "time":"6:00:00"
+   },
+   "tabix":{
+      "time":"6:00:00"
+   },
+   "extractVepSites":{
+      "time":"6:00:00"
+   },
+   "extractBedSites":{
+      "time":"10:00:00"
+   },
+}
