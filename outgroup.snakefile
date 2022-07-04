@@ -1,22 +1,14 @@
-#SAMPLES = ["AfGWo", "EthWo", "Dhole", "BlBJa", "SiSJa"]   # using two outgroups
-SAMPLES = ["AfGWo", "BlBJa"]   # using two outgroups
+SAMPLES = ["AfGWo", "EthWo", "Dhole", "BlBJa", "SiSJa"]   # using two outgroups
+#SAMPLES = ["AfGWo", "BlBJa"]   # using two outgroups
 FILTER = ["mac2", "mac1"]
 
 # The following rules will not be executed as jobs
-localrules: all, makeGVCFList,
+localrules: all, makeGVCFList
 
 rule all:
     input:
-    #    "gvcf/{samples}.g.vcf.gz",
-    #    "flagstat/AfGWo.stats"
-    #    expand("gvcf/{prefix}.g.vcf.gz", prefix=SAMPLES)
-    #    expand("outgroup/{prefix}.CombFilter.vep.chr1-X.vcf", prefix=SAMPLES),
-    #    expand("outgroup/{prefix}.{prefix2}.vep.vcf", prefix=SAMPLES, prefix2=FILTER)
-    #    expand("outgroup/{prefix}.100S95F14R.{prefix2}.chr1-38.extract.vcf", prefix=SAMPLES, prefix2=FILTER),
-    #    expand("outgroup/{prefix}.100S95F14R.{prefix2}.vepfinal.chr1-38.extract.vcf", prefix=SAMPLES, prefix2=FILTER)
-        expand("outgroup/{prefix}.74Females.{prefix2}.chrX.extract.vcf", prefix=SAMPLES, prefix2=FILTER),
-        expand("outgroup/{prefix}.74Females.{prefix2}.vepfinal.chrX.extract.vcf", prefix=SAMPLES, prefix2=FILTER)
-
+        expand("outgroup/{prefix}.100S95F14R.chr1-38.{prefix2}.extract.vcf", prefix=SAMPLES, prefix2=FILTER),
+        expand("outgroup/{prefix}.74Females.chrX.{prefix2}.extract.vcf", prefix=SAMPLES, prefix2=FILTER)
 
 rule bwa:
     input:
@@ -94,7 +86,6 @@ rule makeGVCFList:
     shell:
         "echo {input} >{output}"
 
-# Tried writing to a .gz file directly, but this did not work (some kind of java error)
 rule AllsitesGenotypeGVCFs:
     input:
         fa="reference/Canis_familiaris.CanFam3.1.dna.toplevel.fa",
@@ -135,22 +126,6 @@ rule tabix:
     threads: 1
     shell:
         "tabix {params} {input}"
-
-# Probably don't need this anymore
-#rule extractVepSites:
-#    input:
-#        vcf="vcf/{species, \w+}.vcf.gz",
-#        index="vcf/{species, \w+}.vcf.gz.tbi",
-#        #bed="vep/100S95F15R.{filter}.final.all.chr1-X.bed" #changed 2022-03-23
-#        bed="vep/{filter}.bed"
-#    output:
-#        "outgroup/{species, \w+}.{filter}.vcf"
-#    log:
-#        "logs/vep/{species, \w+}.{filter}.extract.log"
-#    threads: 1
-#    shell:
-#        "zcat {input.vcf} |grep -v '<NON_REF>' | \
-#        intersectBed -header -a - -b {input.bed} >{output}"
 
 rule extractBedSites:
     input:
