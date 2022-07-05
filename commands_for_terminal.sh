@@ -40,7 +40,7 @@ sbatch -J chrX -t 2-00:00:00 -p core $scrdir/run_vcftools_extractIndListAndChrom
 mkdir -p bed
 for i in "1" "2"
 do
- zcat vcf/$p1.SNPs.HF.mac$i.vcf.gz | awk '(/^[0-9]/){s=$2-1; print $1"\t"s"\t"$2}' >bed/$p1.chr1-38.mac$i.bed
+ #zcat vcf/$p1.SNPs.HF.mac$i.vcf.gz | awk '(/^[0-9]/){s=$2-1; print $1"\t"s"\t"$2}' >bed/$p1.chr1-38.mac$i.bed
  zcat vcf/$p2.SNPs.HF.mac$i.vcf.gz | awk '(/^X/){s=$2-1; print $1"\t"s"\t"$2}' >bed/74Females.chrX.mac$i.bed
 done
 
@@ -78,15 +78,15 @@ snakemake --snakefile $scrdir/snake/outgroup.snakefile -p -j 64  --cluster "sbat
 
 suffix="extract.noIndel"
 d=5
-for filt "mac1" "mac2"
+for filt in "mac1" "mac2"
 do
  for set in "$p2.chrX" "$p1.chr1-38"
  do
    s="$set.$filt"
-  for i in  "AfGWo" "BlBJa" "Dhole" "SiSJa" "EthWo"
+  for i in  "AfGWo" "BlBJa" #"Dhole" "SiSJa" "EthWo"
   do
     # Remove indels
-    awk '{if(/^#/){print}else{if(length($4)==1 && length($5)==1 && $5!="*"){print}}}' outgroup/$i.$s.extract.vcf >outgroup/$i.$s.$suffix.vcf
+    #awk '{if(/^#/){print}else{if(length($4)==1 && length($5)==1 && $5!="*"){print}}}' outgroup/$i.$s.extract.vcf >outgroup/$i.$s.$suffix.vcf
     # Assign genotypes to outgroups (min depth=5 required)
     python3 $scrdir/pseudo_haploidize.py -v outgroup/$i.$s.$suffix.vcf -d $d -o outgroup/$i.$s.weightedAF.DP$d
     # Add Ns (for sites missing, for example if they fall in a deletion)
@@ -104,16 +104,17 @@ do
   for set in "$p2.chrX" "$p1.chr1-38"
   do
     s="$set.$filt"
-  # Combine sites with genotypes from the wanted outgroups
-  paste bed/$s.bed outgroup/AfGWo.$s.weightedAF.DP$d.addN.txt outgroup/BlBJa.$s.weightedAF.DP$d.addN.txt >outgroup/2outgroups.$s.DP$d.txt
-  # Assign ancestral using a python script, this prints the most common allele
-  # together with the support (fraction of outgroups supporting this allele) and
-  # number of outgroups with data
-  python3 $scrdir/assign_ancestral.py -i outgroup/2outgroups.$s.DP$d.txt -c 4 -o outgroup/Ancestral.2outgroups.$s.DP$d 2>stderr.2out.$s.DP$d.txt
-  # Extract sites with 100% agreement and no missing outgroups
-  awk -v OFS="\t" '($4!="N" && $5=="1.00" && $6==2){print $1,$2,$3,$4}' outgroup/Ancestral.2outgroups.$s.DP$d.ancestral.txt >outgroup/Pol.2out.$s.bed
-  # Also output as CHR:POS BASE to be used with old perl script
-  awk '($4!="N" && $5=="1.00" && $6==2){print $1":"$2"\t"$4}' outgroup/Ancestral.2outgroups.$s.DP$d.ancestral.txt >outgroup/Pol.2out.$s.txt
+    # Combine sites with genotypes from the wanted outgroups
+    paste bed/$s.bed outgroup/AfGWo.$s.weightedAF.DP$d.addN.txt outgroup/BlBJa.$s.weightedAF.DP$d.addN.txt >outgroup/2outgroups.$s.DP$d.txt
+    # Assign ancestral using a python script, this prints the most common allele
+    # together with the support (fraction of outgroups supporting this allele) and
+    # number of outgroups with data
+    python3 $scrdir/assign_ancestral.py -i outgroup/2outgroups.$s.DP$d.txt -c 4 -o outgroup/Ancestral.2outgroups.$s.DP$d 2>stderr.2out.$s.DP$d.txt
+    # Extract sites with 100% agreement and no missing outgroups
+    awk -v OFS="\t" '($4!="N" && $5=="1.00" && $6==2){print $1,$2,$3,$4}' outgroup/Ancestral.2outgroups.$s.DP$d.ancestral.txt >outgroup/Pol.2out.$s.bed
+    # Also output as CHR:POS BASE to be used with old perl script
+    awk '($4!="N" && $5=="1.00" && $6==2){print $1":"$2"\t"$4}' outgroup/Ancestral.2outgroups.$s.DP$d.ancestral.txt >outgroup/Pol.2out.$s.txt
+  done
 done
 
 # Also tried using all 5 outgroups, this resulted in fewer calls due to lower
@@ -174,10 +175,10 @@ do
     pref=`echo $set | cut -f1 -d"."`
     pf="$pref.$filt"
     s="$set.$filt"
-    intersectBed -v -a vep/$pf.firstExtract.synonymous.bed -b vep/$pf.firstExtract.missense.bed vep/$s.firstExtract.nonsense.bed | intersectBed -a /dev/stdin -b bed/$s.bed >vep/$s.final.synonymous.bed
-    intersectBed -v -a vep/$pf.firstExtract.missense.bed -b vep/$pf.firstExtract.nonsense.bed | intersectBed -a /dev/stdin -b bed/$s.bed >vep/$s.final.missense.bed
-    intersectBed -v -a vep/$pf.firstExtract.tolerated.missense.bed -b vep/$pf.firstExtract.nonsense.bed vep/$pf.final.deleterious.missense.bed | intersectBed -a /dev/stdin -b bed/$s.bed >vep/$fs.final.tolerated.missense.bed
-    intersectBed -v -a vep/$pf.firstExtract.deleterious.missense.bed -b vep/$pf.firstExtract.nonsense.bed | intersectBed -a /dev/stdin -b bed/$s.bed >vep/$s.final.deleterious.missense.bed
+    intersectBed -v -a vep/$pf.firstExtract.synonymous.bed -b vep/$pf.firstExtract.missense.bed vep/$pf.firstExtract.nonsense.bed | intersectBed -a - -b bed/$s.bed >vep/$s.final.synonymous.bed
+    intersectBed -v -a vep/$pf.firstExtract.missense.bed -b vep/$pf.firstExtract.nonsense.bed | intersectBed -a - -b bed/$s.bed >vep/$s.final.missense.bed
+    intersectBed -v -a vep/$pf.firstExtract.tolerated.missense.bed -b vep/$pf.firstExtract.nonsense.bed vep/$pf.firstExtract.deleterious.missense.bed | intersectBed -a - -b bed/$s.bed >vep/$s.final.tolerated.missense.bed
+    intersectBed -v -a vep/$pf.firstExtract.deleterious.missense.bed -b vep/$pf.firstExtract.nonsense.bed | intersectBed -a - -b bed/$s.bed >vep/$s.final.deleterious.missense.bed
     intersectBed -a vep/$pf.firstExtract.nonsense.bed -b bed/$s.bed >vep/$s.final.nonsense.bed
     cat vep/$s.final.missense.bed vep/$s.final.nonsense.bed vep/$s.final.synonymous.bed |sort -k1,1 -k2,2n >bed/$s.vepfinal.bed
   done
@@ -196,9 +197,9 @@ do
     s="$set.$filt"
     mkdir -p vcf/$anc.$filt/
     intersectBed -header -a vcf/$pref.SNPs.HF.$filt.vcf.gz -b bed/$s.vepfinal.bed >vcf/$s.vepfinal.vcf
-  perl $scrdir/addAAInfoToVCF_fromList.pl vcf/$s.vepfinal.vcf outgroup/$anc.$s.txt vcf/$anc.$filt/$set.vepfinal.vcf
+    perl $scrdir/addAAInfoToVCF_fromList.pl vcf/$s.vepfinal.vcf outgroup/$anc.$s.txt vcf/$anc.$filt/$set.vepfinal.vcf
+  done
 done
-
 
 # Make tables with vep and sift sites (that could be polarized) to be used in R
 anc="Pol.2out"
@@ -209,23 +210,25 @@ do
   pref=`echo $set |cut -f1 -d"."`
   s="$set.$filt"
   poldir="$anc.$filt"
+  mkdir -p vep/$poldir
   echo "CHROM POS VEP_TYPE" |sed 's/ /\t/g' >vep/$poldir/$set.veptypes.txt
- rm -f $set.veptypes.tmp
- for type in "missense" "nonsense" "synonymous"
- do
-    intersectBed -a vep/$s.final.$type.bed -b vcf/$poldir/$set.vepfinal.vcf |awk -v t=$set '{print $1"\t"$3"\t"t}' >>$set.veptypes.tmp
- done
- sort -k1,1 -k2,2n $set.veptypes.tmp >> vep/$poldir/$set.veptypes.txt
- rm $set.veptypes.tmp
- # SIFT
- echo "CHROM POS SIFT_TYPE" |sed 's/ /\t/g' >vep/$poldir/$set.sifttypes.txt
- rm -f $set.sifttypes.tmp
- intersectBed -v -a vep/$s.vepfinal.bed -b vep/$s.final.deleterious.missense.bed vep/$s.final.tolerated.missense.bed |awk '{print $1"\t"$3"\tNA"}' >$s.sifttypes.tmp
- intersectBed -a vep/$s.final.deleterious.missense.bed -b vcf/$poldir/$set.vepfinal.vcf |awk '{print $1"\t"$3"\tdeleterious"}' >>$set.sifttypes.tmp
- intersectBed -a vep/$s.final.tolerated.missense.bed -b vcf/$poldir/$set.vepfinal.vcf |
- awk '{print $1"\t"$3"\ttolerated"}' >>$set.sifttypes.tmp
- sort -k1,1 -k2,2n $set.sifttypes.tmp >>vep/$poldir/$set.sifttypes.txt
- rm $set.sifttypes.tmp
+  rm -f $set.veptypes.tmp
+  for type in "missense" "nonsense" "synonymous"
+  do
+    intersectBed -a vep/$s.final.$type.bed -b vcf/$poldir/$set.vepfinal.vcf |awk -v t=$type '{print $1"\t"$3"\t"t}' >>$set.veptypes.tmp
+  done
+  sort -k1,1 -k2,2n $set.veptypes.tmp >> vep/$poldir/$set.veptypes.txt
+  rm $set.veptypes.tmp
+  # SIFT
+  echo "CHROM POS SIFT_TYPE" |sed 's/ /\t/g' >vep/$poldir/$set.sifttypes.txt
+  rm -f $set.sifttypes.tmp
+  intersectBed -v -a bed/$s.vepfinal.bed -b vep/$s.final.deleterious.missense.bed vep/$s.final.tolerated.missense.bed |awk '{print $1"\t"$3"\tNA"}' >$s.sifttypes.tmp
+  intersectBed -a vep/$s.final.deleterious.missense.bed -b vcf/$poldir/$set.vepfinal.vcf |awk '{print $1"\t"$3"\tdeleterious"}' >>$set.sifttypes.tmp
+  intersectBed -a vep/$s.final.tolerated.missense.bed -b vcf/$poldir/$set.vepfinal.vcf |
+  awk '{print $1"\t"$3"\ttolerated"}' >>$set.sifttypes.tmp
+  sort -k1,1 -k2,2n $set.sifttypes.tmp >>vep/$poldir/$set.sifttypes.txt
+  rm $set.sifttypes.tmp
+  done
 done
 
 # Merge the autosome and X
