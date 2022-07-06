@@ -44,7 +44,11 @@ do
  zcat vcf/$p2.SNPs.HF.mac$i.vcf.gz | awk '(/^X/){s=$2-1; print $1"\t"s"\t"$2}' >bed/74Females.chrX.mac$i.bed
 done
 
-
+# Note: The two filterings, called mac2 and mac1, only differ in the number of
+# minor alleles - mac2 demands at least 2 minor alleles (stricter, will remove
+# potential calling errors), while mac1 only demands a single allele, which
+# includes all singletons but also potentially some call errors. The last is
+# only used for site frequency spectrum analysis.
 
 ################################# POLARIZING ###################################
 # Commands for polarizing SNPs using 2 or 5 outgroups (2 was used in the paper)
@@ -132,7 +136,7 @@ done
 
 
 
-##################################### VEP ######################################
+####################### DELETERIOUSNESS BASED ON VEP/SIFT ######################
 # VEP was run as part of the main snakemake pipeline above. Below follow
 # extractions of the different categories.
 
@@ -239,3 +243,25 @@ do
   cat vep/$poldir/$p1.chr1-38.veptypes.txt <(tail -n+2 vep/$poldir/$p2.chrX.veptypes.txt) >vep/$poldir/veptypes.chr1-X.txt
  cat vep/$poldir/$p1.chr1-38.sifttypes.txt  <(tail -n+2 vep/$poldir/$p2.chrX.sifttypes.txt) >vep/$poldir/sifttypes.chr1-X.txt
 done
+
+
+################ DELETERIOUSNESS BASED ON AMINO-ACID PROPERTIES ################
+
+# The following python script assumes three tables named table.ex.csv,
+# table.sneath.csv and table.miyata.csv placed in the subdirectory help_files
+
+mkdir -p aa_prop/
+python3 $scrdir/replacement_impact.py -i vep/$p1.SNPs.HF.mac2.txt -o aa_prop/$p1.mac2.properties.all.txt
+
+# This script needs info on amino acid changes and therefore takes the VEP
+# output as input (which nicely annotates all changes, including amino acids
+# for non-synonymous changes). Except for this it is not related to the VEP
+# analysis in any way.
+
+# Just as for VEP, there are some SNPs with multiple annotations (due to over-
+# lapping genes). I only save the change with the highest impact (that means,
+# highest for Miyata/Sneath, lowest for Exchgb)
+cut -f1,2,6- aa_prop/$p1.mac2.properties.all.txt| awk -v OFS="\t" '{if(NR==1){print}else{if(NR==2){lc=$1; lpos=$2; lmi=$3; lexr=$4; lexv=$5; lsn=$6}else{if(lpos==$2){if($3>lmi){lmi=$3}; if($4<lexr){lexr=$4}; if($5<lexv){lexv=$5}; if($6>lsn){lsn=$6}}else{print lc,lpos,lmi,lexr,lexv,lsn; lc=$1; lpos=$2; lmi=$3; lexr=$4; lexv=$5; lsn=$6}}}}'  >aa_prop/$p1.mac2.properties.filt.txt
+
+
+######################## DELETERIOUSNESS BASED ON GERP #########################
