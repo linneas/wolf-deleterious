@@ -1,0 +1,28 @@
+{
+   "__default__":{
+      "account": "p2018002",
+      "queue":"core",
+      "time":"5:00:00",
+      "partition":"core",
+      "name":"{rule}.{wildcards}",
+      "output":"logs/slurm/{rule}.{wildcards}.out",
+      "error":"logs/slurm/{rule}.{wildcards}.err",
+      "n":1,
+      "C":"mem128GB",
+   },
+   "download_data":{
+      "time":"1-00:00:00",
+   },
+   "maffilter":{
+      "time":"1-00:00:00"
+   },
+   "gerp":{
+      "time":"5-00:00:00"
+   },
+   "rates2bed":{
+      "time":"5:00:00"
+   },
+   "liftover":{
+      "time":"10-00:00:00"
+   },
+}

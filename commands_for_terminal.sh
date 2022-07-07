@@ -40,7 +40,7 @@ sbatch -J chrX -t 2-00:00:00 -p core $scrdir/run_vcftools_extractIndListAndChrom
 mkdir -p bed
 for i in "1" "2"
 do
- #zcat vcf/$p1.SNPs.HF.mac$i.vcf.gz | awk '(/^[0-9]/){s=$2-1; print $1"\t"s"\t"$2}' >bed/$p1.chr1-38.mac$i.bed
+ zcat vcf/$p1.SNPs.HF.mac$i.vcf.gz | awk '(/^[0-9]/){s=$2-1; print $1"\t"s"\t"$2}' >bed/$p1.chr1-38.mac$i.bed
  zcat vcf/$p2.SNPs.HF.mac$i.vcf.gz | awk '(/^X/){s=$2-1; print $1"\t"s"\t"$2}' >bed/74Females.chrX.mac$i.bed
 done
 
@@ -132,6 +132,66 @@ do
   paste  bed/$s.bed outgroup/AfGWo.$s.weightedAF.DP$n.addN.txt outgroup/EthWo.$s.weightedAF.DP$d.addN.txt outgroup/Dhole.$s.weightedAF.DP$d.addN.txt outgroup/SiSJa.$s.weightedAF.DP$d.addN.txt outgroup/BlBJa.$s.weightedAF.DP$d.addN.txt >outgroup/5outgroups.$s.DP$d.txt
   python3 $scrdir/assign_ancestral.py -i outgroup/5outgroups.$s.DP$d.txt -c 4 -o outgroup/Ancestral.5outgroups.$s.DP$d 2>stderr.5out.$s.DP$d.txt
   awk -v OFS="\t" '($4!="N" && $5=="1.00" && $6>=3){print $1,$2,$3,$4}' outgroup/Ancestral.5outgroups.$s.DP$d.ancestral.txt >outgroup/Pol.5out.$s.bed
+done
+
+
+
+
+############################ INFERRING FOUNDER MALES ############################
+# 2022-03-24
+# Using the haplotype files that I already prepared (code in COMMANDS.sh)
+
+# Realized that if I use the 74 Females file to infer the X sequence on founder
+# males, I get much less power (ideally, I should use all males as well, but
+# be aware that they are haploid after PAR! THis is something I can add later
+# if I want to!) PAR is pos 0-6.5Mb
+
+# ADDING MALE FOUNDERS TO VEP VCF FILES
+module load bioinfo-tools BEDTools/2.29.2 python3
+for anc in  "Anc.2out.sicomb" "Anc.2out.comb"
+do
+# mkdir -p agnese_haplotypes/MaleFakeGT/$anc/
+ # Autosomes
+# invcf="vcf/polarized/$anc/100S95F14R.vepfinal.chr1-38.vcf"
+# python3 $scrdir/compareHaplotypesToGenotypes.py -v $invcf -p agnese_haplotypes/76Scand.table.withX.txt -o agnese_haplotypes/MaleFakeGT/$anc/100S95F14R.vepfinal.chr1-38
+# awk '(NR>1){s=$2-1; print $1"\t"s"\t"$2"\t"$4"::"$5}' agnese_haplotypes/MaleFakeGT/$anc/100S95F14R.vepfinal.chr1-38.fake.genotypes.txt |intersectBed -wo -a $invcf -b - |cut -f1-218,222 |sed 's/::/\t/g' |cat <(grep "#" $invcf |awk '{if(/#CHROM/){print $0"\tFM1\tFM2"}else{print}}') - >vcf/polarized/$anc/100S95F14R.vepfinal.withMaleFounders.chr1-38.vcf
+ #ChrX
+# invcf="vcf/polarized/$anc/74Females.vepfinal.chrX.vcf"
+ invcf="vcf/polarized/$anc/100S95F14R.vepfinal.chrX.vcf"
+# python3 $scrdir/compareHaplotypesToGenotypes.py -v $invcf -p agnese_haplotypes/76Scand.table.withX.txt -o agnese_haplotypes/MaleFakeGT/$anc/74Females.vepfinal.chrX >agnese_haplotypes/MaleFakeGT/$anc/74Females.vepfinal.chrX.stdout
+# python3 $scrdir/compareHaplotypesToGenotypes_chrX.py -v $invcf -p agnese_haplotypes/76Scand.table.withX.txt -o agnese_haplotypes/MaleFakeGT/$anc/100S95F14R.vepfinal.chrX >agnese_haplotypes/MaleFakeGT/$anc/100S95F14R.vepfinal.chrX.stdout
+# python3 $scrdir/createFakeGenotypesForFounders_haploidX.py -a agnese_haplotypes/MaleFakeGT/$anc/100S95F14R.vepfinal.chrX.assigned.haplotypes.txt -p agnese_haplotypes/3Founders.table.withX.txt -o agnese_haplotypes/MaleFakeGT/$anc/100S95F14R.vepfinal.chrX.fake.genotypes.txt
+ awk '(NR>1){s=$2-1; print $1"\t"s"\t"$2"\t"$4"::"$5}' agnese_haplotypes/MaleFakeGT/$anc/100S95F14R.vepfinal.chrX.fake.genotypes.txt |intersectBed -wo -a $invcf -b - |cut -f1-218,222 |sed 's/::/\t/g' |cat <(grep "#" $invcf |awk '{if(/#CHROM/){print $0"\tFM1\tFM2"}else{print}}') - >vcf/polarized/$anc/100S95F14R.vepfinal.withMaleFounders.chrX.vcf
+done
+
+# Repeating above for whole genome vcf file (polarized)
+for anc in  "Anc.2out.sicomb" # "Anc.2out.comb"
+do
+ #invcf="vcf/polarized/$anc/100S95F14R.allSNPs.chr1-38.vcf"
+ # Run python scripts as job#
+ #part1=$(echo '#!/bin/bash
+ #module load bioinfo-tools python3
+ #python3 '$scrdir'/compareHaplotypesToGenotypes.py -v '$invcf' -p agnese_haplotypes/76Scand.table.withX.txt -o agnese_haplotypes/MaleFakeGT/'$anc'/100S95F14R.allSNPs.chr1-38
+ #python3 '$scrdir'/createFakeGenotypesForFounders.py -a agnese_haplotypes/MaleFakeGT/'$anc'/100S95F14R.allSNPs.chr1-38.assigned.haplotypes.txt -p agnese_haplotypes/3Founders.table.withX.txt -o agnese_haplotypes/MaleFakeGT/'$anc'/100S95F14R.allSNPs.chr1-38.fake.genotypes.txt
+# '| sbatch -J $anc.A -A p2018002 --qos=p2018002_8nodes -t 2-00:00:00 -p core |cut -f4 -d" ")
+ # Run awk script as job on dependency
+ #sbatch -J $anc.A.p2 -A p2018002 --qos=p2018002_8nodes -d afterok:$part1 -t 2-00:00:00 -p core  $scrdir/run_createFakeVCF.sh agnese_haplotypes/MaleFakeGT/$anc/100S95F14R.allSNPs.chr1-38.fake.genotypes.txt $invcf "1-218,222" vcf/polarized/$anc/100S95F14R.allSNPs.withMaleFounders.chr1-38.vcf
+ # chrX
+ #invcf="vcf/polarized/$anc/74Females.allSNPs.chrX.vcf"
+ invcf="vcf/polarized/$anc/100S95F14R.allSNPs.chrX.vcf"
+ # Run python scripts as job
+# part1=$(echo '#!/bin/bash
+# module load bioinfo-tools python3
+# python3 '$scrdir'/compareHaplotypesToGenotypes.py -v '$invcf' -p agnese_haplotypes/76Scand.table.withX.txt -o agnese_haplotypes/MaleFakeGT/'$anc'/74Females.allSNPs.chr1-38
+# python3 '$scrdir'/createFakeGenotypesForFounders.py -a agnese_haplotypes/MaleFakeGT/'$anc'/74Females.allSNPs.chrX.assigned.haplotypes.txt -p agnese_haplotypes/3Founders.table.withX.txt -o agnese_haplotypes/MaleFakeGT/'$anc'/74Females.allSNPs.chrX.fake.genotypes.txt
+# '| sbatch -J $anc.X -A p2018002 --qos=p2018002_8nodes -t 2-00:00:00 -p core |cut -f4 -d" ")
+ part1=$(echo '#!/bin/bash
+ module load bioinfo-tools python3
+ python3 '$scrdir'/compareHaplotypesToGenotypes_chrX.py -v '$invcf' -p agnese_haplotypes/76Scand.table.withX.txt -o agnese_haplotypes/MaleFakeGT/'$anc'/100S95F14R.allSNPs.chrX
+ python3 '$scrdir'/createFakeGenotypesForFounders_haploidX.py -a agnese_haplotypes/MaleFakeGT/'$anc'/100S95F14R.allSNPs.chrX.assigned.haplotypes.txt -p agnese_haplotypes/3Founders.table.withX.txt -o agnese_haplotypes/MaleFakeGT/'$anc'/100S95F14R.allSNPs.chrX.fake.genotypes.txt
+ '| sbatch -J $anc.X -A p2018002 --qos=p2018002_8nodes -t 2-00:00:00 -p core |cut -f4 -d" ")
+ # Run awk script as job on dependency
+ sbatch -J $anc.X.p2 -A p2018002 --qos=p2018002_8nodes -d afterok:$part1 -t 2-00:00:00 -p core  $scrdir/run_createFakeVCF.sh agnese_haplotypes/MaleFakeGT/$anc/100S95F14R.allSNPs.chrX.fake.genotypes.txt $invcf "1-218,222" vcf/polarized/$anc/100S95F14R.allSNPs.withMaleFounders.chrX.vcf
 done
 
 
@@ -245,6 +305,7 @@ do
 done
 
 
+
 ################ DELETERIOUSNESS BASED ON AMINO-ACID PROPERTIES ################
 
 # The following python script assumes three tables named table.ex.csv,
@@ -264,4 +325,110 @@ python3 $scrdir/replacement_impact.py -i vep/$p1.SNPs.HF.mac2.txt -o aa_prop/$p1
 cut -f1,2,6- aa_prop/$p1.mac2.properties.all.txt| awk -v OFS="\t" '{if(NR==1){print}else{if(NR==2){lc=$1; lpos=$2; lmi=$3; lexr=$4; lexv=$5; lsn=$6}else{if(lpos==$2){if($3>lmi){lmi=$3}; if($4<lexr){lexr=$4}; if($5<lexv){lexv=$5}; if($6>lsn){lsn=$6}}else{print lc,lpos,lmi,lexr,lexv,lsn; lc=$1; lpos=$2; lmi=$3; lexr=$4; lexv=$5; lsn=$6}}}}'  >aa_prop/$p1.mac2.properties.filt.txt
 
 
+
 ######################## DELETERIOUSNESS BASED ON GERP #########################
+# For the GERP part, we only use the stricter SNP filtering (mac2), and only
+# autosomes.
+mkdir -p maf/
+wget http://hgdownload.soe.ucsc.edu/goldenPath/hg38/multiz100way/hg38.100way.nh maf/
+cat maf/hg38.100way.nh |sed 's/\s//g' |tr "\n" "+" |sed 's/+//g' >maf/hg38.tree
+
+# Run snakemake pipeline that downloads maf alignments from UCSC
+# Make sure the following are installed:
+#snakemake/5.30.1
+#MafFilter/1.1.2
+#GERP++/20110522
+
+# Plot the DAG
+snakemake --snakefile $scrdir/gerp.snakefile --dag | dot -Tsvg > dag/gerp_pipeline.svg
+# Run pipeline
+snakemake --snakefile $scrdir/gerp.snakefile -p -j 64  --cluster "sbatch -p {cluster.partition} -n {cluster.n} -t {cluster.time} -e {cluster.error} -o {cluster.output}" --cluster-config $scrdir/cluster_gerp.json
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~ TRANSLATE TO DOG REFERENCE ~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# Files are sorted after human chromosomes now.
+# The following code sorts the files after the dog genome.
+# Note! If run several times files chr*.rates.bed.chr* have to be deleted
+# before the rerun, since the script only appends, not overwrites.
+for hchr in {1..22}
+do
+  infile="gerp/canFam3/hg38.chr$hchr.rates.bed"
+  job=$(sbatch -J h.chr$hchr.divide -t 1:00:00 -p core $scrdir/run_divideLiftover.sh $infile |cut -f4 -d" ")
+  for dchr in {1..38}
+  do
+    sbatch -J h.chr$hchr.c.chr$dchr.sort -d afterok:$job -t 4:00:00 -p core $scrdir/run_sortLiftover.sh $infile.chr$dchr
+  done
+done
+
+for dchr in {1..38}
+do
+   outf="gerp/canFam3/chr$dchr.rates.bed"
+   echo '#!/bin/bash
+   sort -m -k2,2n --buffer-size=6G gerp/canFam3/hg38.chr*.rates.bed.chr'$dchr'.sorted >'$outf'
+   '| sbatch -J merge.$dchr -t 1:00:00 -p core
+done
+
+# Because of some regions can have multiple hits in the alignment, some positions
+# can occur twice (or more) in the output file.
+# Remove all multi-occuring positions, to reduce bias caused by alignment issues
+for dchr in {1..38}
+do
+  sbatch -J removedupl.$dchr -t 4:00:00 -p core $scrdir/run_remove_liftover_duplicates.sh gerp/canFam3/chr$dchr.rates.bed gerp/canFam3/chr$dchr.rates.unique.bed
+done
+
+ # Make a merged version so I can plot everything together
+ echo '#!/bin/bash
+ rm -f gerp/canFam3/Autosomes.rates.unique.bed
+for dchr in {1..38}
+do
+ cat chr$dchr.rates.unique.bed >>gerp/canFam3/Autosomes.rates.unique.bed
+done
+'| sbatch -J merge -t 5:00:00 -p core
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~  POLARIZE SNPs GENOME-WIDE ~~~~~~~~~~~~~~~~~~~~~~~~~
+anc="Pol.2out"
+filt="mac2"
+chr="chr1-38"
+perl $scrdir/addAAInfoToVCF_fromList.pl <(zcat vcf/$p1.SNPs.HF.$filt.vcf.gz) outgroup/$anc.$p1.$chr.$filt.txt vcf/$anc.$filt/$p1.$chr.allSNPs.vcf
+done
+
+# And make a bed with these...
+awk '(/^[0-9]/){s=$2-1; print $1"\t"s"\t"$2}' vcf/$anc.$filt/$p1.$chr.allSNPs.vcf >bed/$anc.$filt/$p1.$chr.allSNPs.bed
+
+# .. so we can extract the wanted GERP scores
+intersectBed -a <(sed "s/chr//" gerp/canFam3/Autosomes.rates.unique.bed) -b bed/$anc.$filt/$p1.$chr.allSNPs.bed >gerp/canFam3/$anc/$filt/$p1.$chr.rates.unique.bed
+
+
+# ~~~~~~~~~~~~~~~~~~~~  CALCULATE GERP LOAD PER INDIVIDUAL ~~~~~~~~~~~~~~~~~~~~~
+anc="Pol.2out"
+filt="mac2"
+chr="chr1-38"
+# Calculating GERP mutation load using different GERP threshold (4 is used for
+# the paper)
+for gerp in 2 4 6 8 10
+do
+  python3 $scrdir/GerpLoad_polarized.py -l $p1.pop.list -v vcf/$anc.$filt/$p1.$chr.allSNPs.vcf -b outgroup/$anc.$p1.$chr.$filt.bed -g gerp/canFam3/$anc/$filt/$p1.$chr.rates.unique.bed -t $gerp -o gerp/canFam3/$anc.$filt/LoadPerInd.thres$gerp.$p1.chr1-38.allSNPs.txt
+done
+
+
+########################## STATS AND PLOTTING WITH R ###########################
+#R version used: R/4.1.1
+
+#In R
+# source("~/private/runfiles/wolf/deleterious/plot_GERP_histogram.R")
+# Or sending as a job
+echo '#!/bin/bash
+module load R/4.1.1 R_packages/4.1.1
+Rscript ~/private/runfiles/wolf/deleterious/plot_GERP_genes_density.R
+'| sbatch -J Rplot -A p2018002 --qos=p2018002_8nodes -t 10:00:00 -p core
+
+
+
+
+# Plot distribution for GERP scores of synonymous and deleterious SNPS
+# (I added this to the same plot script as I used before)
+module load R/4.1.1 R_packages/4.1.1
+#In R
+# source("~/private/runfiles/wolf/deleterious/plot_GERP_histogram.R")
+# (or just copying the part of the code I want to run and paste it in R)

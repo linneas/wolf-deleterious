@@ -1,5 +1,4 @@
-SAMPLES = ["AfGWo", "EthWo", "Dhole", "BlBJa", "SiSJa"]   # using two outgroups
-#SAMPLES = ["AfGWo", "BlBJa"]   # using two outgroups
+SAMPLES = ["AfGWo", "EthWo", "Dhole", "BlBJa", "SiSJa"]
 FILTER = ["mac2", "mac1"]
 
 # The following rules will not be executed as jobs
