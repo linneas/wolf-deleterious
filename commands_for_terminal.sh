@@ -137,65 +137,6 @@ done
 
 
 
-############################ INFERRING FOUNDER MALES ############################
-# 2022-03-24
-# Using the haplotype files that I already prepared (code in COMMANDS.sh)
-
-# Realized that if I use the 74 Females file to infer the X sequence on founder
-# males, I get much less power (ideally, I should use all males as well, but
-# be aware that they are haploid after PAR! THis is something I can add later
-# if I want to!) PAR is pos 0-6.5Mb
-
-# ADDING MALE FOUNDERS TO VEP VCF FILES
-module load bioinfo-tools BEDTools/2.29.2 python3
-for anc in  "Anc.2out.sicomb" "Anc.2out.comb"
-do
-# mkdir -p agnese_haplotypes/MaleFakeGT/$anc/
- # Autosomes
-# invcf="vcf/polarized/$anc/100S95F14R.vepfinal.chr1-38.vcf"
-# python3 $scrdir/compareHaplotypesToGenotypes.py -v $invcf -p agnese_haplotypes/76Scand.table.withX.txt -o agnese_haplotypes/MaleFakeGT/$anc/100S95F14R.vepfinal.chr1-38
-# awk '(NR>1){s=$2-1; print $1"\t"s"\t"$2"\t"$4"::"$5}' agnese_haplotypes/MaleFakeGT/$anc/100S95F14R.vepfinal.chr1-38.fake.genotypes.txt |intersectBed -wo -a $invcf -b - |cut -f1-218,222 |sed 's/::/\t/g' |cat <(grep "#" $invcf |awk '{if(/#CHROM/){print $0"\tFM1\tFM2"}else{print}}') - >vcf/polarized/$anc/100S95F14R.vepfinal.withMaleFounders.chr1-38.vcf
- #ChrX
-# invcf="vcf/polarized/$anc/74Females.vepfinal.chrX.vcf"
- invcf="vcf/polarized/$anc/100S95F14R.vepfinal.chrX.vcf"
-# python3 $scrdir/compareHaplotypesToGenotypes.py -v $invcf -p agnese_haplotypes/76Scand.table.withX.txt -o agnese_haplotypes/MaleFakeGT/$anc/74Females.vepfinal.chrX >agnese_haplotypes/MaleFakeGT/$anc/74Females.vepfinal.chrX.stdout
-# python3 $scrdir/compareHaplotypesToGenotypes_chrX.py -v $invcf -p agnese_haplotypes/76Scand.table.withX.txt -o agnese_haplotypes/MaleFakeGT/$anc/100S95F14R.vepfinal.chrX >agnese_haplotypes/MaleFakeGT/$anc/100S95F14R.vepfinal.chrX.stdout
-# python3 $scrdir/createFakeGenotypesForFounders_haploidX.py -a agnese_haplotypes/MaleFakeGT/$anc/100S95F14R.vepfinal.chrX.assigned.haplotypes.txt -p agnese_haplotypes/3Founders.table.withX.txt -o agnese_haplotypes/MaleFakeGT/$anc/100S95F14R.vepfinal.chrX.fake.genotypes.txt
- awk '(NR>1){s=$2-1; print $1"\t"s"\t"$2"\t"$4"::"$5}' agnese_haplotypes/MaleFakeGT/$anc/100S95F14R.vepfinal.chrX.fake.genotypes.txt |intersectBed -wo -a $invcf -b - |cut -f1-218,222 |sed 's/::/\t/g' |cat <(grep "#" $invcf |awk '{if(/#CHROM/){print $0"\tFM1\tFM2"}else{print}}') - >vcf/polarized/$anc/100S95F14R.vepfinal.withMaleFounders.chrX.vcf
-done
-
-# Repeating above for whole genome vcf file (polarized)
-for anc in  "Anc.2out.sicomb" # "Anc.2out.comb"
-do
- #invcf="vcf/polarized/$anc/100S95F14R.allSNPs.chr1-38.vcf"
- # Run python scripts as job#
- #part1=$(echo '#!/bin/bash
- #module load bioinfo-tools python3
- #python3 '$scrdir'/compareHaplotypesToGenotypes.py -v '$invcf' -p agnese_haplotypes/76Scand.table.withX.txt -o agnese_haplotypes/MaleFakeGT/'$anc'/100S95F14R.allSNPs.chr1-38
- #python3 '$scrdir'/createFakeGenotypesForFounders.py -a agnese_haplotypes/MaleFakeGT/'$anc'/100S95F14R.allSNPs.chr1-38.assigned.haplotypes.txt -p agnese_haplotypes/3Founders.table.withX.txt -o agnese_haplotypes/MaleFakeGT/'$anc'/100S95F14R.allSNPs.chr1-38.fake.genotypes.txt
-# '| sbatch -J $anc.A -A p2018002 --qos=p2018002_8nodes -t 2-00:00:00 -p core |cut -f4 -d" ")
- # Run awk script as job on dependency
- #sbatch -J $anc.A.p2 -A p2018002 --qos=p2018002_8nodes -d afterok:$part1 -t 2-00:00:00 -p core  $scrdir/run_createFakeVCF.sh agnese_haplotypes/MaleFakeGT/$anc/100S95F14R.allSNPs.chr1-38.fake.genotypes.txt $invcf "1-218,222" vcf/polarized/$anc/100S95F14R.allSNPs.withMaleFounders.chr1-38.vcf
- # chrX
- #invcf="vcf/polarized/$anc/74Females.allSNPs.chrX.vcf"
- invcf="vcf/polarized/$anc/100S95F14R.allSNPs.chrX.vcf"
- # Run python scripts as job
-# part1=$(echo '#!/bin/bash
-# module load bioinfo-tools python3
-# python3 '$scrdir'/compareHaplotypesToGenotypes.py -v '$invcf' -p agnese_haplotypes/76Scand.table.withX.txt -o agnese_haplotypes/MaleFakeGT/'$anc'/74Females.allSNPs.chr1-38
-# python3 '$scrdir'/createFakeGenotypesForFounders.py -a agnese_haplotypes/MaleFakeGT/'$anc'/74Females.allSNPs.chrX.assigned.haplotypes.txt -p agnese_haplotypes/3Founders.table.withX.txt -o agnese_haplotypes/MaleFakeGT/'$anc'/74Females.allSNPs.chrX.fake.genotypes.txt
-# '| sbatch -J $anc.X -A p2018002 --qos=p2018002_8nodes -t 2-00:00:00 -p core |cut -f4 -d" ")
- part1=$(echo '#!/bin/bash
- module load bioinfo-tools python3
- python3 '$scrdir'/compareHaplotypesToGenotypes_chrX.py -v '$invcf' -p agnese_haplotypes/76Scand.table.withX.txt -o agnese_haplotypes/MaleFakeGT/'$anc'/100S95F14R.allSNPs.chrX
- python3 '$scrdir'/createFakeGenotypesForFounders_haploidX.py -a agnese_haplotypes/MaleFakeGT/'$anc'/100S95F14R.allSNPs.chrX.assigned.haplotypes.txt -p agnese_haplotypes/3Founders.table.withX.txt -o agnese_haplotypes/MaleFakeGT/'$anc'/100S95F14R.allSNPs.chrX.fake.genotypes.txt
- '| sbatch -J $anc.X -A p2018002 --qos=p2018002_8nodes -t 2-00:00:00 -p core |cut -f4 -d" ")
- # Run awk script as job on dependency
- sbatch -J $anc.X.p2 -A p2018002 --qos=p2018002_8nodes -d afterok:$part1 -t 2-00:00:00 -p core  $scrdir/run_createFakeVCF.sh agnese_haplotypes/MaleFakeGT/$anc/100S95F14R.allSNPs.chrX.fake.genotypes.txt $invcf "1-218,222" vcf/polarized/$anc/100S95F14R.allSNPs.withMaleFounders.chrX.vcf
-done
-
-
-
 ####################### DELETERIOUSNESS BASED ON VEP/SIFT ######################
 # VEP was run as part of the main snakemake pipeline above. Below follow
 # extractions of the different categories.
@@ -248,13 +189,13 @@ do
   done
 done
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ EXRACT AND POLARIZE ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ EXTRACT AND POLARIZE ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Extract vep sites from the whole genome vcfs and polarize them
 
 anc="Pol.2out"
 for filt in "mac1" "mac2"
 do
-  for set in "$p1.chr1-38" "$p2.chrX"
+  for set in "$p1.chr1-38" #"$p2.chrX"
   do
     pref=`echo $set | cut -f1 -d"."`
     chr=`echo $set | cut -f2 -d"."`
@@ -302,6 +243,40 @@ do
   poldir="$anc.$filt"
   cat vep/$poldir/$p1.chr1-38.veptypes.txt <(tail -n+2 vep/$poldir/$p2.chrX.veptypes.txt) >vep/$poldir/veptypes.chr1-X.txt
  cat vep/$poldir/$p1.chr1-38.sifttypes.txt  <(tail -n+2 vep/$poldir/$p2.chrX.sifttypes.txt) >vep/$poldir/sifttypes.chr1-X.txt
+done
+
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~ INFERRING FOUNDER MALES ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Autosomes
+anc="Pol.2out"
+set=$p1.chr1-38
+for filt in "mac1" "mac2"
+do
+  poldir=$anc.$filt
+  mkdir -p inferred/$poldir/
+  # Connect haplotypes to genotypes for each SNP position
+  python3 $scrdir/assign_genotype_to_haplotype.py -v vcf/$poldir/$set.vepfinal.vcf -p help_files/76Scand_haplotypes.txt -o inferred/$poldir/$set.vepfinal
+  # Use this and the infered haplotypes for founder males from Viluma et al.
+  # to infer "fake" genotypes.
+  python3 $scrdir/infer_founder_genotypes.py -a inferred/$poldir/$set.vepfinal.assigned.haplotypes.txt -p help_files/3Founders_haplotypes.txt -o inferred/$poldir/3Founders.chr1-38.vepfinal.fake.genotypes.txt
+  #Add these to the vcf file
+  awk '(NR>1){s=$2-1; print $1"\t"s"\t"$2"\t"$4"::"$5}' inferred/$poldir/3Founders.chr1-38.vepfinal.fake.genotypes.txt |intersectBed -wo -a vcf/$poldir/$set.vepfinal.vcf -b - |cut -f1-218,222 |sed 's/::/\t/g' |cat <(grep "#" vcf/$poldir/$set.vepfinal.vcf|awk '{if(/#CHROM/){print $0"\tFM1\tFM2"}else{print}}') - >vcf/$poldir/$set.vepfinal.wfm.vcf
+done
+
+# X chromomosome
+# The script adds the genotype in diploid form to match with the other genotypes
+# (so that if one male has allele 1, it will get the genotype 1/1. This is taken
+# care of later so that the males are treated as haploid in R)
+anc="Pol.2out"
+set=$p2.chrX
+for filt in "mac1" "mac2"
+do
+  poldir=$anc.$filt
+  python3 $scrdir/assign_genotype_to_haplotype_haploid.py -v vcf/$poldir/$set.vepfinal.vcf -p help_files/76Scand_haplotypes.txt -o inferred/$poldir/$set.vepfinal
+  python3 $scrdir/infer_founder_genotypes_haploid.py -a inferred/$poldir/$set.vepfinal.assigned.haplotypes.txt -p help_files/3Founders_haplotypes.txt -o inferred/$poldir/3Founders.chrX.vepfinal.fake.genotypes.txt
+  #Add these to the vcf file
+  awk '(NR>1){s=$2-1; print $1"\t"s"\t"$2"\t"$4"::"$5}' inferred/$poldir/3Founders.chrX.vepfinal.fake.genotypes.txt |intersectBed -wo -a vcf/$poldir/$set.vepfinal.vcf -b - |cut -f1-218,222 |sed 's/::/\t/g' |cat <(grep "#" vcf/$poldir/$set.vepfinal.vcf|awk '{if(/#CHROM/){print $0"\tFM1\tFM2"}else{print}}') - >vcf/$poldir/$set.vepfinal.wfm.vcf
 done
 
 
@@ -400,6 +375,25 @@ awk '(/^[0-9]/){s=$2-1; print $1"\t"s"\t"$2}' vcf/$anc.$filt/$p1.$chr.allSNPs.vc
 intersectBed -a <(sed "s/chr//" gerp/canFam3/Autosomes.rates.unique.bed) -b bed/$anc.$filt/$p1.$chr.allSNPs.bed >gerp/canFam3/$anc/$filt/$p1.$chr.rates.unique.bed
 
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~ INFERRING FOUNDER MALES ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Autosomes
+anc="Pol.2out"
+set=$p1.chr1-38
+for filt in "mac2" #"mac1"
+do
+  poldir=$anc.$filt
+  mkdir -p inferred/$poldir/
+  # Connect haplotypes to genotypes for each SNP position
+  python3 $scrdir/assign_genotype_to_haplotype.py -v vcf/$poldir/$set.allSNPs.vcf -p help_files/76Scand_haplotypes.txt -o inferred/$poldir/$set.allSNPs
+  # Use this and the infered haplotypes for founder males from Viluma et al.
+  # to infer "fake" genotypes.
+  python3 $scrdir/infer_founder_genotypes.py -a inferred/$poldir/$set.allSNPs.assigned.haplotypes.txt -p help_files/3Founders_haplotypes.txt -o inferred/$poldir/3Founders.allSNPs.fake.genotypes.txt
+  #Add these to the vcf file
+  awk '(NR>1){s=$2-1; print $1"\t"s"\t"$2"\t"$4"::"$5}' inferred/$poldir/3Founders.allSNPs.fake.genotypes.txt |intersectBed -wo -a vcf/$poldir/$set.allSNPs.vcf -b - |cut -f1-218,222 |sed 's/::/\t/g' |cat <(grep "#" vcf/$poldir/$set.allSNPs.vcf|awk '{if(/#CHROM/){print $0"\tFM1\tFM2"}else{print}}') - >vcf/$poldir/$set.allSNPs.wfm.vcf
+done
+
+### DO I NEED THIS FOR THE X CHROMOSOME AS WELL??
+
 # ~~~~~~~~~~~~~~~~~~~~  CALCULATE GERP LOAD PER INDIVIDUAL ~~~~~~~~~~~~~~~~~~~~~
 anc="Pol.2out"
 filt="mac2"
@@ -408,14 +402,23 @@ chr="chr1-38"
 # the paper)
 for gerp in 2 4 6 8 10
 do
-  python3 $scrdir/GerpLoad_polarized.py -l $p1.pop.list -v vcf/$anc.$filt/$p1.$chr.allSNPs.vcf -b outgroup/$anc.$p1.$chr.$filt.bed -g gerp/canFam3/$anc/$filt/$p1.$chr.rates.unique.bed -t $gerp -o gerp/canFam3/$anc.$filt/LoadPerInd.thres$gerp.$p1.chr1-38.allSNPs.txt
+  python3 $scrdir/GerpLoad_polarized.py -l $p1.pop.list -v vcf/$anc.$filt/$p1.$chr.allSNPs.wfm.vcf -b outgroup/$anc.$p1.$chr.$filt.bed -g gerp/canFam3/$anc/$filt/$p1.$chr.rates.unique.bed -t $gerp -o gerp/canFam3/$anc.$filt/LoadPerInd.thres$gerp.$p1.chr1-38.allSNPs.wfm.txt
 done
 
 
 ########################## STATS AND PLOTTING WITH R ###########################
 #R version used: R/4.1.1
 
-#In R
+# All the stats and numbers in the text and the tables are calculated with R.
+# There is one general script, and one script per figure (that sometimes also
+# contains code for extracting numbers). Everything was run interactively, one
+# command at the time.
+
+####!!! I NEED TO ADD R CODE HERE AND TRY IT OUT!
+# ALSO ADD ALL META DATA FILES TO HELP_FILES
+
+
+
 # source("~/private/runfiles/wolf/deleterious/plot_GERP_histogram.R")
 # Or sending as a job
 echo '#!/bin/bash
