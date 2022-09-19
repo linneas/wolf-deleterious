@@ -5,8 +5,8 @@
 # might need to be tweaked if run on other systems)
 
 # the commands assumes a working directory with sub directories for all steps
-# (vcf, reference, vep, gerp, outgroup etc.) The script repository can be placed
-# within the working directory, or elsewhere:
+# (vcf, reference, vep, gerp, outgroup etc). The "help_files" should also be
+# placed here. The scripts directory can be placed anywhere (specified here):
 scrdir="./wolf-deleterious/"
 
 # Most files have the following prefix, standing for "100 Scandinavian,
@@ -117,7 +117,7 @@ do
     # Extract sites with 100% agreement and no missing outgroups
     awk -v OFS="\t" '($4!="N" && $5=="1.00" && $6==2){print $1,$2,$3,$4}' outgroup/Ancestral.2outgroups.$s.DP$d.ancestral.txt >outgroup/Pol.2out.$s.bed
     # Also output as CHR:POS BASE to be used with old perl script
-    awk '($4!="N" && $5=="1.00" && $6==2){print $1":"$2"\t"$4}' outgroup/Ancestral.2outgroups.$s.DP$d.ancestral.txt >outgroup/Pol.2out.$s.txt
+    awk '($4!="N" && $5=="1.00" && $6==2){print $1":"$3"\t"$4}' outgroup/Ancestral.2outgroups.$s.DP$d.ancestral.txt >outgroup/Pol.2out.$s.txt
   done
 done
 
@@ -195,7 +195,7 @@ done
 anc="Pol.2out"
 for filt in "mac1" "mac2"
 do
-  for set in "$p1.chr1-38" #"$p2.chrX"
+  for set in "$p1.chr1-38" "$p2.chrX"
   do
     pref=`echo $set | cut -f1 -d"."`
     chr=`echo $set | cut -f2 -d"."`
@@ -276,9 +276,8 @@ do
   python3 $scrdir/assign_genotype_to_haplotype_haploid.py -v vcf/$poldir/$set.vepfinal.vcf -p help_files/76Scand_haplotypes.txt -o inferred/$poldir/$set.vepfinal
   python3 $scrdir/infer_founder_genotypes_haploid.py -a inferred/$poldir/$set.vepfinal.assigned.haplotypes.txt -p help_files/3Founders_haplotypes.txt -o inferred/$poldir/3Founders.chrX.vepfinal.fake.genotypes.txt
   #Add these to the vcf file
-  awk '(NR>1){s=$2-1; print $1"\t"s"\t"$2"\t"$4"::"$5}' inferred/$poldir/3Founders.chrX.vepfinal.fake.genotypes.txt |intersectBed -wo -a vcf/$poldir/$set.vepfinal.vcf -b - |cut -f1-218,222 |sed 's/::/\t/g' |cat <(grep "#" vcf/$poldir/$set.vepfinal.vcf|awk '{if(/#CHROM/){print $0"\tFM1\tFM2"}else{print}}') - >vcf/$poldir/$set.vepfinal.wfm.vcf
+  awk '(NR>1){s=$2-1; print $1"\t"s"\t"$2"\t"$4"::"$5}' inferred/$poldir/3Founders.chrX.vepfinal.fake.genotypes.txt |intersectBed -wo -a vcf/$poldir/$set.vepfinal.vcf -b - |cut -f1-83,87 |sed 's/::/\t/g' |cat <(grep "#" vcf/$poldir/$set.vepfinal.vcf|awk '{if(/#CHROM/){print $0"\tFM1\tFM2"}else{print}}') - >vcf/$poldir/$set.vepfinal.wfm.vcf
 done
-
 
 
 ################ DELETERIOUSNESS BASED ON AMINO-ACID PROPERTIES ################
@@ -363,36 +362,35 @@ done
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~  POLARIZE SNPs GENOME-WIDE ~~~~~~~~~~~~~~~~~~~~~~~~~
 anc="Pol.2out"
-filt="mac2"
 chr="chr1-38"
-perl $scrdir/addAAInfoToVCF_fromList.pl <(zcat vcf/$p1.SNPs.HF.$filt.vcf.gz) outgroup/$anc.$p1.$chr.$filt.txt vcf/$anc.$filt/$p1.$chr.allSNPs.vcf
+for filt in "mac1" "mac2"
+do
+  mkdir -p bed/$anc.$filt
+  mkdir -p gerp/canFam3/$anc.$filt
+  perl $scrdir/addAAInfoToVCF_fromList.pl <(zcat vcf/$p1.SNPs.HF.$filt.vcf.gz) outgroup/$anc.$p1.$chr.$filt.txt vcf/$anc.$filt/$p1.$chr.allSNPs.vcf
+  # And make a bed with these...
+  awk '(/^[0-9]/){s=$2-1; print $1"\t"s"\t"$2}' vcf/$anc.$filt/$p1.$chr.allSNPs.vcf >bed/$anc.$filt/$p1.$chr.allSNPs.bed
+  # .. so we can extract the wanted GERP scores
+  intersectBed -a <(sed "s/chr//" gerp/canFam3/Autosomes.rates.unique.bed) -b bed/$anc.$filt/$p1.$chr.allSNPs.bed >gerp/canFam3/$anc.$filt/$p1.$chr.rates.unique.bed
 done
 
-# And make a bed with these...
-awk '(/^[0-9]/){s=$2-1; print $1"\t"s"\t"$2}' vcf/$anc.$filt/$p1.$chr.allSNPs.vcf >bed/$anc.$filt/$p1.$chr.allSNPs.bed
-
-# .. so we can extract the wanted GERP scores
-intersectBed -a <(sed "s/chr//" gerp/canFam3/Autosomes.rates.unique.bed) -b bed/$anc.$filt/$p1.$chr.allSNPs.bed >gerp/canFam3/$anc/$filt/$p1.$chr.rates.unique.bed
-
-
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~ INFERRING FOUNDER MALES ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Autosomes
+# Autosomes (For the GERP part, we only use autosomes)
 anc="Pol.2out"
 set=$p1.chr1-38
-for filt in "mac2" #"mac1"
+for filt in "mac2" "mac1"
 do
   poldir=$anc.$filt
   mkdir -p inferred/$poldir/
   # Connect haplotypes to genotypes for each SNP position
   python3 $scrdir/assign_genotype_to_haplotype.py -v vcf/$poldir/$set.allSNPs.vcf -p help_files/76Scand_haplotypes.txt -o inferred/$poldir/$set.allSNPs
   # Use this and the infered haplotypes for founder males from Viluma et al.
-  # to infer "fake" genotypes.
+  # to infer the genotypes.
   python3 $scrdir/infer_founder_genotypes.py -a inferred/$poldir/$set.allSNPs.assigned.haplotypes.txt -p help_files/3Founders_haplotypes.txt -o inferred/$poldir/3Founders.allSNPs.fake.genotypes.txt
   #Add these to the vcf file
   awk '(NR>1){s=$2-1; print $1"\t"s"\t"$2"\t"$4"::"$5}' inferred/$poldir/3Founders.allSNPs.fake.genotypes.txt |intersectBed -wo -a vcf/$poldir/$set.allSNPs.vcf -b - |cut -f1-218,222 |sed 's/::/\t/g' |cat <(grep "#" vcf/$poldir/$set.allSNPs.vcf|awk '{if(/#CHROM/){print $0"\tFM1\tFM2"}else{print}}') - >vcf/$poldir/$set.allSNPs.wfm.vcf
 done
 
-### DO I NEED THIS FOR THE X CHROMOSOME AS WELL??
 
 # ~~~~~~~~~~~~~~~~~~~~  CALCULATE GERP LOAD PER INDIVIDUAL ~~~~~~~~~~~~~~~~~~~~~
 anc="Pol.2out"
@@ -402,7 +400,7 @@ chr="chr1-38"
 # the paper)
 for gerp in 2 4 6 8 10
 do
-  python3 $scrdir/GerpLoad_polarized.py -l $p1.pop.list -v vcf/$anc.$filt/$p1.$chr.allSNPs.wfm.vcf -b outgroup/$anc.$p1.$chr.$filt.bed -g gerp/canFam3/$anc/$filt/$p1.$chr.rates.unique.bed -t $gerp -o gerp/canFam3/$anc.$filt/LoadPerInd.thres$gerp.$p1.chr1-38.allSNPs.wfm.txt
+  python3 $scrdir/GerpLoad_polarized.py -l help_files/temporal_classes_separate_founders.txt -v vcf/$anc.$filt/$p1.$chr.allSNPs.wfm.vcf -b outgroup/$anc.$p1.$chr.$filt.bed -g gerp/canFam3/$anc.$filt/$p1.$chr.rates.unique.bed -t $gerp -o gerp/canFam3/$anc.$filt/LoadPerInd.thres$gerp.$p1.chr1-38.allSNPs.wfm.txt
 done
 
 
@@ -417,7 +415,13 @@ done
 ####!!! I NEED TO ADD R CODE HERE AND TRY IT OUT!
 # ALSO ADD ALL META DATA FILES TO HELP_FILES
 
+# R scripts for calculating VEP and GERP stats (for the tables in the paper)
+Rscript $scrdir/calculate_Vep_stats_for_tables.R
+Rscript $scrdir/calculate_GERP_stats_for_tables.R
 
+# R scripts for the figures
+Rscript $scrdir/
+Rscript $scrdir/
 
 # source("~/private/runfiles/wolf/deleterious/plot_GERP_histogram.R")
 # Or sending as a job
