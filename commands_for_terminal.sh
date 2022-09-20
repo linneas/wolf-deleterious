@@ -7,7 +7,9 @@
 # the commands assumes a working directory with sub directories for all steps
 # (vcf, reference, vep, gerp, outgroup etc). The "help_files" should also be
 # placed here. The scripts directory can be placed anywhere (specified here):
-scrdir="./wolf-deleterious/"
+scrdir="./wolf-deleterious/scripts"
+Rdir="./wolf-deleterious/R"
+smkdir="./wolf-deleterious/snakemake"
 
 # Most files have the following prefix, standing for "100 Scandinavian,
 # 95 Finnish and 14 Russian wolves"
@@ -27,9 +29,9 @@ p2="74Females"
 #vcftools/0.1.16
 #vep/99
 # Plot the DAG (directed acyclic graph)
-snakemake --snakefile $scrdir/main.snakefile --dag | dot -Tsvg > dag/dag.$p1.svg
+snakemake --snakefile $smkdir/main.snakefile --dag | dot -Tsvg > dag/dag.$p1.svg
 # Run full pipeline
-snakemake --snakefile $scrdir/main.snakefile -p -j 64  --cluster "sbatch -p {cluster.partition} -n {cluster.n} -C {cluster.C} -t {cluster.time} -e {cluster.error} -o {cluster.output}" --cluster-config $scrdir/cluster_main.json
+snakemake --snakefile $smkdir/main.snakefile -p -j 64  --cluster "sbatch -p {cluster.partition} -n {cluster.n} -C {cluster.C} -t {cluster.time} -e {cluster.error} -o {cluster.output}" --cluster-config $smkdir/cluster_main.json
 
 # For the X chromosomes we only want females to avoid ploidy problems. Extract
 # the X and the 74 females from the original vcf, before any filtering
@@ -73,9 +75,9 @@ done
 #BEDTools/2.29.2
 
 # Plot DAG (directed acyclic graph)
-snakemake --dag --snakefile $scrdir/outgroup.snakefile | dot -Tsvg > dag/dag.outgroups.svg
+snakemake --dag --snakefile $smkdir/outgroup.snakefile | dot -Tsvg > dag/dag.outgroups.svg
 # Then start the actual pipeline
-snakemake --snakefile $scrdir/snake/outgroup.snakefile -p -j 64  --cluster "sbatch -p {cluster.partition} -n {cluster.n} -C {cluster.C} -t {cluster.time} -e {cluster.error} -o {cluster.output} --mail-type {cluster.mail-type} --mail-user {cluster.mail-user}" --cluster-config $scrdir/snake/cluster_outgroup.json
+snakemake --snakefile $smkdir/outgroup.snakefile -p -j 64  --cluster "sbatch -p {cluster.partition} -n {cluster.n} -C {cluster.C} -t {cluster.time} -e {cluster.error} -o {cluster.output} --mail-type {cluster.mail-type} --mail-user {cluster.mail-user}" --cluster-config $smkdir/snake/cluster_outgroup.json
 
 
 # ~~~~~~~~~~~~~~~~~~~ ASSIGN GENOTYPES (PSEUDO-HAPLOIDIZED) ~~~~~~~~~~~~~~~~~~~~
@@ -201,8 +203,11 @@ do
     chr=`echo $set | cut -f2 -d"."`
     s="$set.$filt"
     mkdir -p vcf/$anc.$filt/
+    mkdir -p bed/$anc.$filt/
     intersectBed -header -a vcf/$pref.SNPs.HF.$filt.vcf.gz -b bed/$s.vepfinal.bed >vcf/$s.vepfinal.vcf
     perl $scrdir/addAAInfoToVCF_fromList.pl vcf/$s.vepfinal.vcf outgroup/$anc.$s.txt vcf/$anc.$filt/$set.vepfinal.vcf
+    # Make bed file:
+    awk -v OFS="\t" '($1!~/^#/){s=$2-1; print $1,s,$2}' vcf/$anc.$filt/$set.vepfinal.vcf >bed/$anc.$filt/$set.vepfinal.bed
   done
 done
 
@@ -210,7 +215,7 @@ done
 anc="Pol.2out"
 for filt in "mac1" "mac2"
 do
- for set in "$p2.chrX" "$p1.chr1-38"
+ for set in "$p2.chrX" #"$p1.chr1-38"
 do
   pref=`echo $set |cut -f1 -d"."`
   s="$set.$filt"
@@ -314,9 +319,9 @@ cat maf/hg38.100way.nh |sed 's/\s//g' |tr "\n" "+" |sed 's/+//g' >maf/hg38.tree
 #GERP++/20110522
 
 # Plot the DAG
-snakemake --snakefile $scrdir/gerp.snakefile --dag | dot -Tsvg > dag/gerp_pipeline.svg
+snakemake --snakefile $smkdir/gerp.snakefile --dag | dot -Tsvg > dag/gerp_pipeline.svg
 # Run pipeline
-snakemake --snakefile $scrdir/gerp.snakefile -p -j 64  --cluster "sbatch -p {cluster.partition} -n {cluster.n} -t {cluster.time} -e {cluster.error} -o {cluster.output}" --cluster-config $scrdir/cluster_gerp.json
+snakemake --snakefile $smkdir/gerp.snakefile -p -j 64  --cluster "sbatch -p {cluster.partition} -n {cluster.n} -t {cluster.time} -e {cluster.error} -o {cluster.output}" --cluster-config $smkdir/cluster_gerp.json
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~ TRANSLATE TO DOG REFERENCE ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -350,7 +355,7 @@ do
   sbatch -J removedupl.$dchr -t 4:00:00 -p core $scrdir/run_remove_liftover_duplicates.sh gerp/canFam3/chr$dchr.rates.bed gerp/canFam3/chr$dchr.rates.unique.bed
 done
 
- # Make a merged version so I can plot everything together
+ # Make a merged version
  echo '#!/bin/bash
  rm -f gerp/canFam3/Autosomes.rates.unique.bed
 for dchr in {1..38}
@@ -365,13 +370,15 @@ anc="Pol.2out"
 chr="chr1-38"
 for filt in "mac1" "mac2"
 do
-  mkdir -p bed/$anc.$filt
-  mkdir -p gerp/canFam3/$anc.$filt
-  perl $scrdir/addAAInfoToVCF_fromList.pl <(zcat vcf/$p1.SNPs.HF.$filt.vcf.gz) outgroup/$anc.$p1.$chr.$filt.txt vcf/$anc.$filt/$p1.$chr.allSNPs.vcf
+#  mkdir -p bed/$anc.$filt
+#  mkdir -p gerp/canFam3/$anc.$filt
+#  perl $scrdir/addAAInfoToVCF_fromList.pl <(zcat vcf/$p1.SNPs.HF.$filt.vcf.gz) outgroup/$anc.$p1.$chr.$filt.txt vcf/$anc.$filt/$p1.$chr.allSNPs.vcf
   # And make a bed with these...
-  awk '(/^[0-9]/){s=$2-1; print $1"\t"s"\t"$2}' vcf/$anc.$filt/$p1.$chr.allSNPs.vcf >bed/$anc.$filt/$p1.$chr.allSNPs.bed
+#  awk '(/^[0-9]/){s=$2-1; print $1"\t"s"\t"$2}' vcf/$anc.$filt/$p1.$chr.allSNPs.vcf >bed/$anc.$filt/$p1.$chr.allSNPs.bed
   # .. so we can extract the wanted GERP scores
-  intersectBed -a <(sed "s/chr//" gerp/canFam3/Autosomes.rates.unique.bed) -b bed/$anc.$filt/$p1.$chr.allSNPs.bed >gerp/canFam3/$anc.$filt/$p1.$chr.rates.unique.bed
+#  intersectBed -a <(sed "s/chr//" gerp/canFam3/Autosomes.rates.unique.bed) -b bed/$anc.$filt/$p1.$chr.allSNPs.bed >gerp/canFam3/$anc.$filt/$p1.$chr.allSNPs.rates.unique.bed
+  # And intersect with VEP (for plotting)
+  intersectBed -a <(sed "s/chr//" gerp/canFam3/Autosomes.rates.unique.bed) -b bed/$anc.$filt/$p1.$chr.vepfinal.bed >gerp/canFam3/$anc.$filt/$p1.$chr.vepfinal.rates.unique.bed
 done
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~ INFERRING FOUNDER MALES ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -398,44 +405,27 @@ filt="mac2"
 chr="chr1-38"
 # Calculating GERP mutation load using different GERP threshold (4 is used for
 # the paper)
-for gerp in 2 4 6 8 10
+for gerp in 10 # 2 4 6 8 10
 do
-  python3 $scrdir/GerpLoad_polarized.py -l help_files/temporal_classes_separate_founders.txt -v vcf/$anc.$filt/$p1.$chr.allSNPs.wfm.vcf -b outgroup/$anc.$p1.$chr.$filt.bed -g gerp/canFam3/$anc.$filt/$p1.$chr.rates.unique.bed -t $gerp -o gerp/canFam3/$anc.$filt/LoadPerInd.thres$gerp.$p1.chr1-38.allSNPs.wfm.txt
+  python3 $scrdir/gerp_load_polarized.py -l <(cut -f1,3 help_files/metadata.txt |tail -n+2) -v vcf/$anc.$filt/$p1.$chr.allSNPs.wfm.vcf -b outgroup/$anc.$p1.$chr.$filt.bed -g gerp/canFam3/$anc.$filt/$p1.$chr.rates.unique.bed -t $gerp -o gerp/canFam3/$anc.$filt/LoadPerInd.thres$gerp.$p1.chr1-38.allSNPs.wfm.txt
 done
+
 
 
 ########################## STATS AND PLOTTING WITH R ###########################
 #R version used: R/4.1.1
 
 # All the stats and numbers in the text and the tables are calculated with R.
-# There is one general script, and one script per figure (that sometimes also
+# There is twp general scripts, and one script per figure (that sometimes also
 # contains code for extracting numbers). Everything was run interactively, one
 # command at the time.
 
-####!!! I NEED TO ADD R CODE HERE AND TRY IT OUT!
-# ALSO ADD ALL META DATA FILES TO HELP_FILES
-
 # R scripts for calculating VEP and GERP stats (for the tables in the paper)
-Rscript $scrdir/calculate_Vep_stats_for_tables.R
-Rscript $scrdir/calculate_GERP_stats_for_tables.R
+Rscript $Rdir/calculate_Vep_stats_for_tables.R
+Rscript $Rdir/calculate_GERP_stats_for_tables.R
 
-# R scripts for the figures
-Rscript $scrdir/
-Rscript $scrdir/
-
-# source("~/private/runfiles/wolf/deleterious/plot_GERP_histogram.R")
-# Or sending as a job
-echo '#!/bin/bash
-module load R/4.1.1 R_packages/4.1.1
-Rscript ~/private/runfiles/wolf/deleterious/plot_GERP_genes_density.R
-'| sbatch -J Rplot -A p2018002 --qos=p2018002_8nodes -t 10:00:00 -p core
-
-
-
-
-# Plot distribution for GERP scores of synonymous and deleterious SNPS
-# (I added this to the same plot script as I used before)
-module load R/4.1.1 R_packages/4.1.1
-#In R
-# source("~/private/runfiles/wolf/deleterious/plot_GERP_histogram.R")
-# (or just copying the part of the code I want to run and paste it in R)
+# R scripts for all the figures
+for i in 1 2 3 4 5 S1 S2 S3 S4
+do
+Rscript $Rdir/plot_fig$i.R
+done
