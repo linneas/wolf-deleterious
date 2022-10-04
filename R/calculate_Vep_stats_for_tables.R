@@ -140,11 +140,16 @@ gt_gen <- tidy_vcf$gt %>% filter(!is.na(gt_GT)) %>%
         mutate_if(is.character, str_replace_all, pattern = "/", replacement = "") %>%
         pivot_wider(names_from=new_gt, names_prefix="gt", values_from=count)
 
-# GET PROP DD, MEAN PER IND
+# GET PROP DELETERIOUS DERIVED HOMOZYGOTES, MEAN PER GEN CLASS
 gt_gen %>% mutate(sum=gt00+gt01+gt11, homderfrq=gt11/sum) %>%
         group_by(GenClass, Type) %>%
         summarize(Mean=mean(homderfrq), n=n(), sd=sd(homderfrq), se=sd/sqrt(n), min=min(homderfrq), max=max(homderfrq))
 
+# GET (NORMALIZED) NUMBER OF DELETERIOUS DERIVED HOMOZYGOTES, MEAN PER GEN CLASS
+gt_gen %>% mutate(sum=gt00+gt01+gt11, callability=sum/max(sum), norm11=gt11/callability) %>%
+      select(-Indiv, -gt00, -gt01) %>% group_by(Type, GenClass) %>%
+      summarize(mean=mean(norm11), sd=sd(norm11), min=min(norm11), max=max(norm11), n=n())
+# Number for F1: 176, and for F5-6: 255. Increase over these generations: 45%!
 
 ################################################################################
 # FOR SUPPLEMENTARY TABLE 2:

@@ -38,7 +38,7 @@ gt_tib <- tidy_vcf$gt %>% filter(!is.na(gt_GT)) %>%
 	mutate(new_gt=case_when((ALT==AA & gt_GT=='0/0') ~'1/1', (ALT==AA & gt_GT=='1/1') ~'0/0', TRUE ~ gt_GT)) %>%
 	mutate(Type=ifelse(Type=='missense', 'deleterious','synonymous')) %>%
 	select(CHROM, POS, Indiv, new_gt, Type, GenClass, Cat) %>%
-  filter(GenClass=="Finland" | GenClass=="F5" | GenClass=="F6" | GenClass=="Founder" |Cat=="2007-2014I") %>%
+  filter(GenClass=="Finland" | GenClass=="F5" | GenClass=="F6" | GenClass=="Founders" |Cat=="2007-2014I") %>%
   mutate(Group=case_when((GenClass=="F5" | GenClass=="F6") ~ "LastScand",TRUE ~ Cat)) %>%
 	group_by(CHROM, POS, new_gt, Type, Group) %>% summarize(count=n()) %>%
 	mutate(ancestral=case_when((new_gt=='0/0') ~ (count*2.0), (new_gt=='0/1') ~ (count*1.0), TRUE ~ 0), derived=case_when((new_gt=='1/1') ~ (count*2.0), (new_gt=='0/1') ~ (count*1.0), TRUE ~ 0)) %>%
@@ -49,34 +49,35 @@ gt_tib <- tidy_vcf$gt %>% filter(!is.na(gt_GT)) %>%
 allfreq <- gt_tib %>%
   mutate_if(is.character, str_replace_all, pattern = "-", replacement = "to") %>%
   pivot_wider(names_from=Group, values_from=c(totanc,totder)) %>%
-  filter(totanc_Founder+totder_Founder==6 & totder_Founder>0 &
+  filter(totanc_Founders+totder_Founders==6 & totder_Founders>0 &
           totanc_LastScand+totder_LastScand>=16) %>%
   mutate(Sc_derFreq=totder_LastScand/(totder_LastScand+totanc_LastScand),
         Fin_derFreq=totder_Finland/(totder_Finland+totanc_Finland),
-        Fou_derFreq=totder_Founder/(totder_Founder+totanc_Founder),
+        Fou_derFreq=totder_Founders/(totder_Founders+totanc_Founders),
         Id_derFreq=totder_2007to2014I/(totder_2007to2014I+totanc_2007to2014I)) %>%
-  select(CHROM, POS, Type, Sc_derFreq, Id_derFreq, Fin_derFreq, Fou_derFreq, totder_Founder)
-allfreq$totder_Founder<-as.factor(allfreq$totder_Founder)
+  select(CHROM, POS, Type, Sc_derFreq, Id_derFreq, Fin_derFreq, Fou_derFreq, totder_Founders)
+allfreq$totder_Founders<-as.factor(allfreq$totder_Founders)
 allfreq$Type <- factor(allfreq$Type, levels = c("synonymous", "deleterious"))
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # DOT PLOT WITH FOUNDER VS LAST SCAND TIME CLASS
 
-# plot both using facet
-p<-ggplot(allfreq, aes(x=Fou_derFreq, y=Sc_derFreq)) +
-  geom_point(alpha = 0.05, colour="dodgerblue4") +
-  facet_grid(~Type, scales="free", space="free_x") +
+# plot both next to eachother
+p<-ggplot(allfreq, aes(x=totder_Founders, y=Sc_derFreq)) +
+#  geom_abline(intercept=0, slope=1/6, linetype="dashed", color="darkred") +
+  geom_boxplot(aes(colour=Type, fill=Type), alpha=0.5) +
+  scale_color_manual(values=c("lightblue", "dodgerblue4")) +
+  scale_fill_manual(values=c("lightblue", "dodgerblue4")) +
   theme(panel.grid.major = element_line(colour = 'white'),
         panel.background = element_rect(fill = '#f5f4e6', colour = '#FFFDF8'),
-        panel.spacing = unit(2, "lines"),
-        legend.box = "vertical",
+        legend.position="bottom",
         legend.title=element_blank(),
         strip.background = element_blank(),
         strip.text.x = element_blank(),
         legend.key = element_rect(fill = '#f5f4e6', color = NA)) +
-  labs(x="Derived allele frequency in original founders", y="Derived allele frequency after 5-6 generations")
+  labs(x="Derived alleles in original founders", y="Derived allele frequency after 5-6 generations")
 
-outfile=paste(plotdir,"Figure2.pdf", sep="")
+outfile=paste(plotdir,"Figure2.2022-02-28.box.pdf", sep="")
 show(outfile)
 
 ggsave(
@@ -85,7 +86,7 @@ ggsave(
   scale = 1,
   dpi = 300,
   limitsize = TRUE,
-  width=7.5,
+  width=4,
   height=4,
 )
 

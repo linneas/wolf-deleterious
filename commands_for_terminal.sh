@@ -154,6 +154,7 @@ do
     # Make a list with all different vep types and combinations present in the set
     grep -v "#" vep/$extset.txt |cut -f7 |sort |uniq -c >vep/$s.vep_types.txt
     # Extract each set separately
+    grep "IMPACT=MODIFIER" vep/$extset.txt |grep -v "intergenic_variant" |grep -v "intron" | awk '{split($2,s,":"); start=s[2]-1; print s[1]"\t"start"\t"s[2]"\t"$1}' |uniq >vep/$s.firstExtract.modifier.bed
     grep "synonymous" vep/$extset.txt |awk '($7=="synonymous_variant"){split($2,s,":"); start=s[2]-1; print s[1]"\t"start"\t"s[2]"\t"$1}' |uniq >vep/$s.firstExtract.synonymous.bed
     grep "missense" vep/$extset.txt |awk '($7=="missense_variant"){split($2,s,":"); start=s[2]-1; print s[1]"\t"start"\t"s[2]"\t"$1}' |uniq >vep/$s.firstExtract.missense.bed
     grep "missense" vep/$extset.txt |grep "tolerated" |grep -v "low_confidence" | awk '($7=="missense_variant"){split($2,s,":"); start=s[2]-1; print s[1]"\t"start"\t"s[2]"\t"$1}' |uniq >vep/$s.firstExtract.tolerated.missense.bed
@@ -182,12 +183,13 @@ do
     pref=`echo $set | cut -f1 -d"."`
     pf="$pref.$filt"
     s="$set.$filt"
-    intersectBed -v -a vep/$pf.firstExtract.synonymous.bed -b vep/$pf.firstExtract.missense.bed vep/$pf.firstExtract.nonsense.bed | intersectBed -a - -b bed/$s.bed >vep/$s.final.synonymous.bed
-    intersectBed -v -a vep/$pf.firstExtract.missense.bed -b vep/$pf.firstExtract.nonsense.bed | intersectBed -a - -b bed/$s.bed >vep/$s.final.missense.bed
-    intersectBed -v -a vep/$pf.firstExtract.tolerated.missense.bed -b vep/$pf.firstExtract.nonsense.bed vep/$pf.firstExtract.deleterious.missense.bed | intersectBed -a - -b bed/$s.bed >vep/$s.final.tolerated.missense.bed
-    intersectBed -v -a vep/$pf.firstExtract.deleterious.missense.bed -b vep/$pf.firstExtract.nonsense.bed | intersectBed -a - -b bed/$s.bed >vep/$s.final.deleterious.missense.bed
-    intersectBed -a vep/$pf.firstExtract.nonsense.bed -b bed/$s.bed >vep/$s.final.nonsense.bed
-    cat vep/$s.final.missense.bed vep/$s.final.nonsense.bed vep/$s.final.synonymous.bed |sort -k1,1 -k2,2n >bed/$s.vepfinal.bed
+#    intersectBed -v -a vep/$pf.firstExtract.synonymous.bed -b vep/$pf.firstExtract.missense.bed vep/$pf.firstExtract.nonsense.bed | intersectBed -a - -b bed/$s.bed >vep/$s.final.synonymous.bed
+#    intersectBed -v -a vep/$pf.firstExtract.missense.bed -b vep/$pf.firstExtract.nonsense.bed | intersectBed -a - -b bed/$s.bed >vep/$s.final.missense.bed
+#    intersectBed -v -a vep/$pf.firstExtract.tolerated.missense.bed -b vep/$pf.firstExtract.nonsense.bed vep/$pf.firstExtract.deleterious.missense.bed | intersectBed -a - -b bed/$s.bed >vep/$s.final.tolerated.missense.bed
+#    intersectBed -v -a vep/$pf.firstExtract.deleterious.missense.bed -b vep/$pf.firstExtract.nonsense.bed | intersectBed -a - -b bed/$s.bed >vep/$s.final.deleterious.missense.bed
+#    intersectBed -a vep/$pf.firstExtract.nonsense.bed -b bed/$s.bed >vep/$s.final.nonsense.bed
+#    cat vep/$s.final.missense.bed vep/$s.final.nonsense.bed vep/$s.final.synonymous.bed |sort -k1,1 -k2,2n >bed/$s.vepfinal.bed
+    intersectBed -v -a vep/$pf.firstExtract.modifier.bed -b bed/$s.vepfinal.bed >bed/$s.modifier.bed
   done
 done
 
@@ -195,19 +197,23 @@ done
 # Extract vep sites from the whole genome vcfs and polarize them
 
 anc="Pol.2out"
-for filt in "mac1" "mac2"
+for filt in "mac1" #"mac2"
 do
   for set in "$p1.chr1-38" "$p2.chrX"
   do
     pref=`echo $set | cut -f1 -d"."`
     chr=`echo $set | cut -f2 -d"."`
     s="$set.$filt"
-    mkdir -p vcf/$anc.$filt/
-    mkdir -p bed/$anc.$filt/
-    intersectBed -header -a vcf/$pref.SNPs.HF.$filt.vcf.gz -b bed/$s.vepfinal.bed >vcf/$s.vepfinal.vcf
-    perl $scrdir/addAAInfoToVCF_fromList.pl vcf/$s.vepfinal.vcf outgroup/$anc.$s.txt vcf/$anc.$filt/$set.vepfinal.vcf
+#   mkdir -p vcf/$anc.$filt/
+#   mkdir -p bed/$anc.$filt/
+#    intersectBed -header -a vcf/$pref.SNPs.HF.$filt.vcf.gz -b bed/$s.vepfinal.bed >vcf/$s.vepfinal.vcf
+#    perl $scrdir/addAAInfoToVCF_fromList.pl vcf/$s.vepfinal.vcf outgroup/$anc.$s.txt vcf/$anc.$filt/$set.vepfinal.vcf
     # Make bed file:
-    awk -v OFS="\t" '($1!~/^#/){s=$2-1; print $1,s,$2}' vcf/$anc.$filt/$set.vepfinal.vcf >bed/$anc.$filt/$set.vepfinal.bed
+#    awk -v OFS="\t" '($1!~/^#/){s=$2-1; print $1,s,$2}' vcf/$anc.$filt/$set.vepfinal.vcf >bed/$anc.$filt/$set.vepfinal.bed
+    #MODIFIER
+    intersectBed -header -a vcf/$pref.SNPs.HF.$filt.vcf.gz -b bed/$s.modifier.bed >vcf/$s.modifier.vcf
+    perl $scrdir/addAAInfoToVCF_fromList.pl vcf/$s.modifier.vcf outgroup/$anc.$s.txt vcf/$anc.$filt/$set.modifier.vcf
+    awk -v OFS="\t" '($1!~/^#/){s=$2-1; print $1,s,$2}' vcf/$anc.$filt/$set.modifier.vcf >bed/$anc.$filt/$set.modifier.bed
   done
 done
 
@@ -215,7 +221,7 @@ done
 anc="Pol.2out"
 for filt in "mac1" "mac2"
 do
- for set in "$p2.chrX" #"$p1.chr1-38"
+ for set in "$p1.chr1-38" "$p2.chrX"
 do
   pref=`echo $set |cut -f1 -d"."`
   s="$set.$filt"
@@ -227,7 +233,8 @@ do
   do
     intersectBed -a vep/$s.final.$type.bed -b vcf/$poldir/$set.vepfinal.vcf |awk -v t=$type '{print $1"\t"$3"\t"t}' >>$set.veptypes.tmp
   done
-  sort -k1,1 -k2,2n $set.veptypes.tmp >> vep/$poldir/$set.veptypes.txt
+
+  cat $set.veptypes.tmp | sort -k1,1 -k2,2n  >> vep/$poldir/$set.veptypes.txt
   rm $set.veptypes.tmp
   # SIFT
   echo "CHROM POS SIFT_TYPE" |sed 's/ /\t/g' >vep/$poldir/$set.sifttypes.txt
@@ -247,7 +254,7 @@ for filt in "mac1" "mac2"
 do
   poldir="$anc.$filt"
   cat vep/$poldir/$p1.chr1-38.veptypes.txt <(tail -n+2 vep/$poldir/$p2.chrX.veptypes.txt) >vep/$poldir/veptypes.chr1-X.txt
- cat vep/$poldir/$p1.chr1-38.sifttypes.txt  <(tail -n+2 vep/$poldir/$p2.chrX.sifttypes.txt) >vep/$poldir/sifttypes.chr1-X.txt
+  cat vep/$poldir/$p1.chr1-38.sifttypes.txt  <(tail -n+2 vep/$poldir/$p2.chrX.sifttypes.txt) >vep/$poldir/sifttypes.chr1-X.txt
 done
 
 
@@ -256,17 +263,21 @@ done
 # Autosomes
 anc="Pol.2out"
 set=$p1.chr1-38
-for filt in "mac1" "mac2"
+for filt in "mac2" #"mac1" 
 do
   poldir=$anc.$filt
-  mkdir -p inferred/$poldir/
+#  mkdir -p inferred/$poldir/
   # Connect haplotypes to genotypes for each SNP position
-  python3 $scrdir/assign_genotype_to_haplotype.py -v vcf/$poldir/$set.vepfinal.vcf -p help_files/76Scand_haplotypes.txt -o inferred/$poldir/$set.vepfinal
+#  python3 $scrdir/assign_genotype_to_haplotype.py -v vcf/$poldir/$set.vepfinal.vcf -p help_files/76Scand_haplotypes.txt -o inferred/$poldir/$set.vepfinal
   # Use this and the infered haplotypes for founder males from Viluma et al.
   # to infer "fake" genotypes.
-  python3 $scrdir/infer_founder_genotypes.py -a inferred/$poldir/$set.vepfinal.assigned.haplotypes.txt -p help_files/3Founders_haplotypes.txt -o inferred/$poldir/3Founders.chr1-38.vepfinal.fake.genotypes.txt
+#  python3 $scrdir/infer_founder_genotypes.py -a inferred/$poldir/$set.vepfinal.assigned.haplotypes.txt -p help_files/3Founders_haplotypes.txt -o inferred/$poldir/3Founders.chr1-38.vepfinal.fake.genotypes.txt
   #Add these to the vcf file
-  awk '(NR>1){s=$2-1; print $1"\t"s"\t"$2"\t"$4"::"$5}' inferred/$poldir/3Founders.chr1-38.vepfinal.fake.genotypes.txt |intersectBed -wo -a vcf/$poldir/$set.vepfinal.vcf -b - |cut -f1-218,222 |sed 's/::/\t/g' |cat <(grep "#" vcf/$poldir/$set.vepfinal.vcf|awk '{if(/#CHROM/){print $0"\tFM1\tFM2"}else{print}}') - >vcf/$poldir/$set.vepfinal.wfm.vcf
+#  awk '(NR>1){s=$2-1; print $1"\t"s"\t"$2"\t"$4"::"$5}' inferred/$poldir/3Founders.chr1-38.vepfinal.fake.genotypes.txt |intersectBed -wo -a vcf/$poldir/$set.vepfinal.vcf -b - |cut -f1-218,222 |sed 's/::/\t/g' |cat <(grep "#" vcf/$poldir/$set.vepfinal.vcf|awk '{if(/#CHROM/){print $0"\tFM1\tFM2"}else{print}}') - >vcf/$poldir/$set.vepfinal.wfm.vcf
+  #MODIFIER
+  python3 $scrdir/assign_genotype_to_haplotype.py -v vcf/$poldir/$set.modifier.vcf -p help_files/76Scand_haplotypes.txt -o inferred/$poldir/$set.modifier
+  python3 $scrdir/infer_founder_genotypes.py -a inferred/$poldir/$set.modifier.assigned.haplotypes.txt -p help_files/3Founders_haplotypes.txt -o inferred/$poldir/3Founders.chr1-38.modifier.fake.genotypes.txt
+  awk '(NR>1){s=$2-1; print $1"\t"s"\t"$2"\t"$4"::"$5}' inferred/$poldir/3Founders.chr1-38.modifier.fake.genotypes.txt |intersectBed -wo -a vcf/$poldir/$set.modifier.vcf -b - |cut -f1-218,222 |sed 's/::/\t/g' |cat <(grep "#" vcf/$poldir/$set.modifier.vcf|awk '{if(/#CHROM/){print $0"\tFM1\tFM2"}else{print}}') - >vcf/$poldir/$set.modifier.wfm.vcf
 done
 
 # X chromomosome

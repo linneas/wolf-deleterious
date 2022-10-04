@@ -1,6 +1,6 @@
 #################
-### R code for plotting Figure 1
-### Make SFS for Russian and Founders (compare deleterious and synonymous)
+### R code for plotting Figure S X
+### Make SFS for Russian and Founders (compare all classes of SNPs)
 
 rm(list=ls())
 
