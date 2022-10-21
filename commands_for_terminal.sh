@@ -152,14 +152,14 @@ do
     extset="$set.SNPs.HF.$filt"
     s="$set.$filt"
     # Make a list with all different vep types and combinations present in the set
-    grep -v "#" vep/$extset.txt |cut -f7 |sort |uniq -c >vep/$s.vep_types.txt
+#    grep -v "#" vep/$extset.txt |cut -f7 |sort |uniq -c >vep/$s.vep_types.txt
     # Extract each set separately
-    grep "IMPACT=MODIFIER" vep/$extset.txt |grep -v "intergenic_variant" |grep -v "intron" | awk '{split($2,s,":"); start=s[2]-1; print s[1]"\t"start"\t"s[2]"\t"$1}' |uniq >vep/$s.firstExtract.modifier.bed
-    grep "synonymous" vep/$extset.txt |awk '($7=="synonymous_variant"){split($2,s,":"); start=s[2]-1; print s[1]"\t"start"\t"s[2]"\t"$1}' |uniq >vep/$s.firstExtract.synonymous.bed
-    grep "missense" vep/$extset.txt |awk '($7=="missense_variant"){split($2,s,":"); start=s[2]-1; print s[1]"\t"start"\t"s[2]"\t"$1}' |uniq >vep/$s.firstExtract.missense.bed
-    grep "missense" vep/$extset.txt |grep "tolerated" |grep -v "low_confidence" | awk '($7=="missense_variant"){split($2,s,":"); start=s[2]-1; print s[1]"\t"start"\t"s[2]"\t"$1}' |uniq >vep/$s.firstExtract.tolerated.missense.bed
-    grep "missense" vep/$extset.txt |grep "deleterious" |grep -v "low_confidence" | awk '($7=="missense_variant"){split($2,s,":"); start=s[2]-1; print s[1]"\t"start"\t"s[2]"\t"$1}' |uniq >vep/$s.firstExtract.deleterious.missense.bed
-    grep "IMPACT=HIGH" vep/$extset.txt |awk '{if($7~/stop_gained/){if($11~/*$/){print}}else if($7~/stop_lost/){if($11~/^*/){print}}else if($7~/start_lost/){if($11~/^M/){print}}else{print}}'|awk '{split($2,s,":"); start=s[2]-1; print s[1]"\t"start"\t"s[2]"\t"$1}' |uniq >vep/$s.firstExtract.nonsense.bed
+    grep "IMPACT=MODIFIER" vep/$extset.txt |grep -v "intergenic_variant" |grep -v "intron" |grep -v "downstream" |grep -v "upstream" | awk '{split($2,s,":"); start=s[2]-1; print s[1]"\t"start"\t"s[2]"\t"$1}' |uniq >vep/$s.firstExtract.modifier.bed
+#    grep "synonymous" vep/$extset.txt |awk '($7=="synonymous_variant"){split($2,s,":"); start=s[2]-1; print s[1]"\t"start"\t"s[2]"\t"$1}' |uniq >vep/$s.firstExtract.synonymous.bed
+#    grep "missense" vep/$extset.txt |awk '($7=="missense_variant"){split($2,s,":"); start=s[2]-1; print s[1]"\t"start"\t"s[2]"\t"$1}' |uniq >vep/$s.firstExtract.missense.bed
+#    grep "missense" vep/$extset.txt |grep "tolerated" |grep -v "low_confidence" | awk '($7=="missense_variant"){split($2,s,":"); start=s[2]-1; print s[1]"\t"start"\t"s[2]"\t"$1}' |uniq >vep/$s.firstExtract.tolerated.missense.bed
+#    grep "missense" vep/$extset.txt |grep "deleterious" |grep -v "low_confidence" | awk '($7=="missense_variant"){split($2,s,":"); start=s[2]-1; print s[1]"\t"start"\t"s[2]"\t"$1}' |uniq >vep/$s.firstExtract.deleterious.missense.bed
+#    grep "IMPACT=HIGH" vep/$extset.txt |awk '{if($7~/stop_gained/){if($11~/*$/){print}}else if($7~/stop_lost/){if($11~/^*/){print}}else if($7~/start_lost/){if($11~/^M/){print}}else{print}}'|awk '{split($2,s,":"); start=s[2]-1; print s[1]"\t"start"\t"s[2]"\t"$1}' |uniq >vep/$s.firstExtract.nonsense.bed
   done
 done
 
@@ -197,8 +197,8 @@ done
 # Extract vep sites from the whole genome vcfs and polarize them
 
 anc="Pol.2out"
-for filt in "mac1" #"mac2"
-do
+for filt in "mac2" #"mac1"
+do+
   for set in "$p1.chr1-38" "$p2.chrX"
   do
     pref=`echo $set | cut -f1 -d"."`
@@ -253,17 +253,26 @@ anc="Pol.2out"
 for filt in "mac1" "mac2"
 do
   poldir="$anc.$filt"
-  cat vep/$poldir/$p1.chr1-38.veptypes.txt <(tail -n+2 vep/$poldir/$p2.chrX.veptypes.txt) >vep/$poldir/veptypes.chr1-X.txt
-  cat vep/$poldir/$p1.chr1-38.sifttypes.txt  <(tail -n+2 vep/$poldir/$p2.chrX.sifttypes.txt) >vep/$poldir/sifttypes.chr1-X.txt
+#  cat vep/$poldir/$p1.chr1-38.veptypes.txt <(tail -n+2 vep/$poldir/$p2.chrX.veptypes.txt) >vep/$poldir/veptypes.chr1-X.txt
+#  cat vep/$poldir/$p1.chr1-38.sifttypes.txt  <(tail -n+2 vep/$poldir/$p2.chrX.sifttypes.txt) >vep/$poldir/sifttypes.chr1-X.txt
+  echo "CHROM POS SIFT_TYPE" |sed 's/ /\t/g' >vep/$poldir/modifier.chr1-X.txt
+  cat bed/$poldir/100S95F14R.chr1-38.modifier.bed bed/$poldir/74Females.chrX.modifier.bed |awk -v OFS='\t' '{print $1,$3,"modifier"}' >>vep/$poldir/modifier.chr1-X.txt
 done
 
-
+# FOR REVISION: Divide nonsense further into three classes; splice, start and stop
+anc="Pol.2out"
+for filt in "mac1" "mac2"
+do
+  poldir="$anc.$filt"
+  echo "CHROM POS NONS_TYPE" |sed 's/ /\t/g' >vep/$poldir/nonsensetypes.chr1-38.txt
+  grep "nonsense" vep/$poldir/100S95F14R.chr1-38.veptypes.txt |cut -f1,2 | sed 's/\t/:/' |sort |join -1 1 -2 2 - <(grep "HIGH" vep/100S95F14R.SNPs.HF.$filt.txt |sort -k2,2)  | cut -f1,7 -d" " |uniq |awk '{if(/splice_acceptor_variant/){t="splice"}else if(/splice_donor_variant/){t="splice"}else if(/start_lost/){t="start"}else if(/stop/){t="stop"}else{t="other"}; print $1"\t"t}' |sed 's/:/\t/' |sort -k1,1n -k2,2n >>vep/$poldir/nonsensetypes.chr1-38.txt
+done
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~ INFERRING FOUNDER MALES ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Autosomes
 anc="Pol.2out"
 set=$p1.chr1-38
-for filt in "mac2" #"mac1" 
+for filt in "mac2" "mac1"
 do
   poldir=$anc.$filt
 #  mkdir -p inferred/$poldir/
@@ -294,7 +303,6 @@ do
   #Add these to the vcf file
   awk '(NR>1){s=$2-1; print $1"\t"s"\t"$2"\t"$4"::"$5}' inferred/$poldir/3Founders.chrX.vepfinal.fake.genotypes.txt |intersectBed -wo -a vcf/$poldir/$set.vepfinal.vcf -b - |cut -f1-83,87 |sed 's/::/\t/g' |cat <(grep "#" vcf/$poldir/$set.vepfinal.vcf|awk '{if(/#CHROM/){print $0"\tFM1\tFM2"}else{print}}') - >vcf/$poldir/$set.vepfinal.wfm.vcf
 done
-
 
 ################ DELETERIOUSNESS BASED ON AMINO-ACID PROPERTIES ################
 
@@ -389,7 +397,8 @@ do
   # .. so we can extract the wanted GERP scores
 #  intersectBed -a <(sed "s/chr//" gerp/canFam3/Autosomes.rates.unique.bed) -b bed/$anc.$filt/$p1.$chr.allSNPs.bed >gerp/canFam3/$anc.$filt/$p1.$chr.allSNPs.rates.unique.bed
   # And intersect with VEP (for plotting)
-  intersectBed -a <(sed "s/chr//" gerp/canFam3/Autosomes.rates.unique.bed) -b bed/$anc.$filt/$p1.$chr.vepfinal.bed >gerp/canFam3/$anc.$filt/$p1.$chr.vepfinal.rates.unique.bed
+  #intersectBed -a <(sed "s/chr//" gerp/canFam3/Autosomes.rates.unique.bed) -b bed/$anc.$filt/$p1.$chr.vepfinal.bed >gerp/canFam3/$anc.$filt/$p1.$chr.vepfinal.rates.unique.bed
+  intersectBed -a <(sed "s/chr//" gerp/canFam3/Autosomes.rates.unique.bed) -b bed/$anc.$filt/$p1.$chr.modifier.bed >gerp/canFam3/$anc.$filt/$p1.$chr.modifier.rates.unique.bed
 done
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~ INFERRING FOUNDER MALES ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -422,12 +431,32 @@ do
 done
 
 
+################################ R_xy ANALYSIS #################################
+# Added for revision 2022.10.11
 
+ # For the Rxy analysis we want to normalize the statistics based on some non
+ # genic control sites. Just like in Grossen et al we use intronic sequence,
+ # and further we want to use the same gene set as where we have the coding
+ # variants, and only choose among sites with a GERP around 0 (for example >-1
+ # and <1.)
+
+ anc="Pol.2out"
+ filt="mac2"
+ chr="chr1-38"
+
+# List of genes with VEP variants (from above):
+intersectBed -a gtf/CanFam3.1.102.CDS.with.gene.names.unmerged.bed -b bed/$anc.$filt/$p1.$chr.vepfinal.bed |cut -f4 |sort |uniq >$anc.$filt.$chr.list_of_genes.txt
+# Bed file with all intronic variants in those genes (>3.5M)
+grep -f list_of_genes.txt vep/$p1.SNPs.HF.$filt.txt |grep "intron_variant" |awk -v OFS="\t" '{split($s1,t,"_"); s=t[2]-1; print t[1],s,t[2]}' |uniq >$anc.$filt.$chr.list_of_intron_SNPs.bed
+# Intersect with gerp scores and only keep sites with GERP >-1 && <1
+intersectBed -a gerp/canFam3/$anc.$filt/$p1.$chr.allSNPs.rates.unique.bed -b $anc.$filt.$chr.list_of_intron_SNPs.bed |awk '($5>-1 && $5<1){print}' >$anc.$filt.$chr.introns_with_neutral_gerp.bed
+# Extract those variants from VCF file
+intersectBed -header -a vcf/$anc.$filt/$p1.$chr.allSNPs.wfm.vcf -b $anc.$filt.$chr.introns_with_neutral_gerp.bed >vcf/$anc.$filt/$p1.$chr.intron.wfm.vcf
 ########################## STATS AND PLOTTING WITH R ###########################
 #R version used: R/4.1.1
 
 # All the stats and numbers in the text and the tables are calculated with R.
-# There is twp general scripts, and one script per figure (that sometimes also
+# There are two general scripts, and one script per figure (that sometimes also
 # contains code for extracting numbers). Everything was run interactively, one
 # command at the time.
 

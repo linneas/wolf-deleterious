@@ -64,7 +64,6 @@ allfreq$Type <- factor(allfreq$Type, levels = c("synonymous", "deleterious"))
 
 # plot both next to eachother
 p<-ggplot(allfreq, aes(x=totder_Founders, y=Sc_derFreq)) +
-#  geom_abline(intercept=0, slope=1/6, linetype="dashed", color="darkred") +
   geom_boxplot(aes(colour=Type, fill=Type), alpha=0.5) +
   scale_color_manual(values=c("lightblue", "dodgerblue4")) +
   scale_fill_manual(values=c("lightblue", "dodgerblue4")) +
@@ -77,7 +76,7 @@ p<-ggplot(allfreq, aes(x=totder_Founders, y=Sc_derFreq)) +
         legend.key = element_rect(fill = '#f5f4e6', color = NA)) +
   labs(x="Derived alleles in original founders", y="Derived allele frequency after 5-6 generations")
 
-outfile=paste(plotdir,"Figure2.2022-02-28.box.pdf", sep="")
+outfile=paste(plotdir,"Figure2.revision.pdf", sep="")
 show(outfile)
 
 ggsave(

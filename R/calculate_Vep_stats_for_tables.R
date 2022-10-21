@@ -1,7 +1,6 @@
 #################
 ### Calculating VEP stats for tables and text
 
-rm(list=ls())
 
 # Setting up, loading R libraries and set working directory
 require(vcfR)
@@ -10,12 +9,14 @@ require(tidyverse)
 # NOTE! For this first part, we use a file WITHOUT the imputed male founders
 # NOTE! Also, the female founder is counted with "Original Scandinavia!"
 
+rm(list=ls())
 # Set filtering here
 filt<-"mac2"
 anc<-paste("Pol.2out.",filt, sep="")
 
 # Reading in the data
 vcf_file=paste("vcf/",anc,"/100S95F14R.chr1-38.vepfinal.vcf", sep="")
+vcf_file2=paste("vcf/",anc,"/100S95F14R.chr1-38.modifier.wfm.vcf", sep="")
 Xvcf_file=paste("vcf/",anc,"/74Females.chrX.vepfinal.vcf", sep="")
 meta_file="help_files/metadata.txt"
 vep_file=paste("vep/",anc,"/veptypes.chr1-X.txt", sep="")
@@ -23,6 +24,7 @@ sift_file=paste("vep/",anc,"/sifttypes.chr1-X.txt", sep="")
 
 vcf <- read.vcfR(vcf_file)
 Xvcf <- read.vcfR(Xvcf_file)
+vcf2 <- read.vcfR(vcf_file2)
 meta_tib<-meta_file %>% read.table(header=TRUE) %>% as_tibble() %>% rename(Indiv=UU_ID, Cat=Category)
 vep_tib <- vep_file %>% read.table(header=TRUE) %>% as_tibble() %>% mutate(CHROM = as.character(CHROM))
 sift_tib <- sift_file %>% read.table(header=TRUE) %>% as_tibble() %>% mutate(CHROM = as.character(CHROM))
@@ -37,6 +39,10 @@ tidy_Xvcf <- vcfR2tidy(Xvcf,
 	info_fields=c("AA"),
 	format_fields=c("GT"),
 	dot_is_NA=TRUE)
+tidy_vcf2 <- vcfR2tidy(vcf2,
+  info_fields=c("AA"),
+  format_fields=c("GT"),
+  dot_is_NA=TRUE)
 
 
 
@@ -70,12 +76,24 @@ gt_der <- tidy_vcf$gt %>% filter(!is.na(gt_GT)) %>%
                                     (ALT==AA & gt_GT=='1/1') ~'0/0', TRUE ~ gt_GT)) %>%
               filter(new_gt!="0/0") %>% select(CHROM, POS, Indiv, VEP_TYPE, SIFT_TYPE, new_gt) %>% inner_join(meta_tib)
 
-
+# And modifier category
+gt_mod_der <- tidy_vcf2$gt %>% filter(!is.na(gt_GT)) %>%
+              inner_join(tidy_vcf2$fix)  %>% mutate(VEP_TYPE="modifier") %>%
+              mutate(new_gt=case_when((ALT==AA & gt_GT=='0/0') ~'1/1',
+                                    (ALT==AA & gt_GT=='1/1') ~'0/0', TRUE ~ gt_GT)) %>%
+              filter(new_gt!="0/0") %>% select(CHROM, POS, Indiv, VEP_TYPE, new_gt) %>% inner_join(meta_tib)
 
 ################################################################################
 # FOR TABLE 1:
 # Table with counts per vep type and group
 gt_der %>% mutate(Grp=ifelse((Cat=="1983-1990" | Cat=="1991-1998" | Cat=="1999-2006" | Cat=="2007-2014S" | Indiv=="D-85-01"), "Original", Cat)) %>%
+          select(CHROM, POS, Cat, VEP_TYPE, Grp) %>%
+          group_by(CHROM, POS, VEP_TYPE, Grp) %>%
+          summarize(indCount=n()) %>% group_by(VEP_TYPE, Grp) %>%
+          summarize(count=n()) %>% print(n=50)
+
+# Table with counts for modifier
+gt_mod_der %>% mutate(Grp=ifelse((Cat=="1983-1990" | Cat=="1991-1998" | Cat=="1999-2006" | Cat=="2007-2014S" | Indiv=="D-85-01"), "Original", Cat)) %>%
           select(CHROM, POS, Cat, VEP_TYPE, Grp) %>%
           group_by(CHROM, POS, VEP_TYPE, Grp) %>%
           summarize(indCount=n()) %>% group_by(VEP_TYPE, Grp) %>%
@@ -97,6 +115,25 @@ gt_der %>% mutate(Grp=ifelse((Cat=="1983-1990" | Cat=="1991-1998" | Cat=="1999-2
 gt_vep %>% mutate(sum=gt00+gt01+gt11, hetfrq=gt01/sum, homderfrq=gt11/sum, deralfreq=(gt11*2+gt01)/(sum*2), der=gt01+gt11) %>% group_by(Grp, VEP_TYPE) %>% summarize(Mean=mean(der), n=n(), sd=sd(der), se=sd/sqrt(n), min=min(der), max=max(der))
 # SIFT types
 gt_sift %>% mutate(sum=gt00+gt01+gt11, hetfrq=gt01/sum, homderfrq=gt11/sum, deralfreq=(gt11*2+gt01)/(sum*2), der=gt01+gt11) %>% group_by(Grp, VEP_TYPE, SIFT_TYPE) %>% summarize(Mean=mean(der), n=n(), sd=sd(der), se=sd/sqrt(n), min=min(der), max=max(der))
+
+# For text, downsample the number of Original wolves to 14 (same as the Russian pop)
+big_table<- gt_der %>% mutate(Grp=ifelse((Cat=="1983-1990" | Cat=="1991-1998" |
+                                        Cat=="1999-2006" | Cat=="2007-2014S" |
+                                        Indiv=="D-85-01"), "Original", Cat)) %>%
+          select(CHROM, POS, Indiv, VEP_TYPE, SIFT_TYPE, Grp)
+
+# Table of original Scand
+orig<- big_table %>% filter(Grp=="Original") %>% select(Indiv) %>%
+                    group_by(Indiv) %>% summarize()
+
+del_vector<-c()
+for (i in 1:100) {
+  subset<- orig %>% slice_sample(n=14)
+  temp<-big_table %>% inner_join(subset) %>% group_by(CHROM, POS,VEP_TYPE,SIFT_TYPE, Grp) %>%
+            summarize(indCount=n()) %>% group_by(VEP_TYPE, SIFT_TYPE, Grp) %>%
+            summarize(count=n())
+            del_vector<-c(del_vector, temp$count[1])
+}
 
 
 ################################################################################
@@ -197,6 +234,52 @@ gt_der %>% select(CHROM, POS, Cat) %>%
                 group_by(CHROM, POS, Cat) %>%
                 summarize(indCount=n()) %>% group_by(Cat) %>%
                 summarize(count=n())
+
+
+# Check how many of the deleterious among 2007-2014I are new
+# (not seen in original scandinavia)
+gt_der %>% filter(SIFT_TYPE=="deleterious") %>%
+            mutate(Grp=ifelse((Cat=="1983-1990" | Cat=="1991-1998" |
+                              Cat=="1999-2006" | Cat=="2007-2014S" |
+                              Indiv=="D-85-01"), "Original", Cat)) %>%
+          select(CHROM, POS, Grp) %>% group_by(CHROM, POS, Grp) %>%
+          summarize(n=n()) %>%
+          pivot_wider(names_prefix= "n_", names_from=Grp, values_from=n) %>%
+          select(CHROM, POS, `n_2007-2014I`, n_Original) %>%
+          filter(!is.na(`n_2007-2014I`) & is.na(n_Original))
+
+# Deleterious in reproducing immigrants, not seen in original Scandinavia
+gt_der %>% filter(SIFT_TYPE=="deleterious") %>%
+            mutate(Grp=ifelse((Cat=="1983-1990" | Cat=="1991-1998" |
+                              Cat=="1999-2006" | Cat=="2007-2014S" |
+                              Indiv=="D-85-01"), "Original", Cat)) %>%
+          select(CHROM, POS, Grp) %>% group_by(CHROM, POS, Grp) %>%
+          summarize(n=n()) %>%
+          pivot_wider(names_prefix= "n_", names_from=Grp, values_from=n) %>%
+          select(CHROM, POS, n_R_immigrants, n_Original) %>%
+          filter(!is.na(n_R_immigrants) & is.na(n_Original))
+
+# Deleterious in L3, not previously seen in Scandinavia
+gt_der %>% filter(SIFT_TYPE=="deleterious") %>%
+            mutate(Grp=ifelse((Cat=="1983-1990" | Cat=="1991-1998" |
+                              Cat=="1999-2006" | Cat=="2007-2014S" |
+                              Indiv=="D-85-01"), "Original", GenClass)) %>%
+          select(CHROM, POS, Grp) %>% group_by(CHROM, POS, Grp) %>%
+          summarize(n=n()) %>%
+          pivot_wider(names_prefix= "n_", names_from=Grp, values_from=n) %>%
+          select(CHROM, POS, n_L3, n_Original) %>%
+          filter(!is.na(n_L3) & is.na(n_Original)) %>% print(n=50)
+
+# Homozygous in L3, not present at all before
+gt_der %>% filter(!(GenClass=="L3" & new_gt=="0/1")) %>% filter(SIFT_TYPE=="deleterious") %>%
+            mutate(Grp=ifelse((Cat=="1983-1990" | Cat=="1991-1998" |
+                              Cat=="1999-2006" | Cat=="2007-2014S" |
+                              Indiv=="D-85-01"), "Original", GenClass)) %>%
+          select(CHROM, POS, Grp) %>% group_by(CHROM, POS, Grp) %>%
+          summarize(n=n()) %>%
+          pivot_wider(names_prefix= "n_", names_from=Grp, values_from=n) %>%
+          select(CHROM, POS, n_L3, n_Original) %>%
+          filter(!is.na(n_L3) & is.na(n_Original)) %>% print(n=50)
 
 
  ###############################################################################

@@ -10,7 +10,7 @@ require(tidyverse)
 
 ###############################################################################
 # CALCULATING NUMBERS FOR GERP SECTION IN PAPER
-# PLUS NUMBERS FOR TABLE S3
+# PLUS NUMBERS FOR TABLE S4
 filt="mac2"
 anc=paste("Pol.2out.", filt, sep="")
 gthres=4
@@ -56,7 +56,7 @@ extr_tib <- data_tib %>% select(Indiv, GenClass, m_sites, r_sites, TOT_CALLS) %>
                                           names_to="TYPE", values_to="sites") %>%
         mutate(cov=TOT_CALLS/length(allgerp_tib$V2), norm_sites=sites/cov)
 
-# Mean and SD for table S3
+# Mean and SD for table S4
 res_masked<- extr_tib %>% group_by(GenClass, TYPE) %>%
       summarize(n=n(), avg=mean(norm_sites), sd=sd(norm_sites), se=sd/sqrt(n),
                 min=min(norm_sites), max=max(norm_sites)) %>% filter(TYPE=="m_sites") %>%
@@ -67,6 +67,18 @@ res_realized<- extr_tib %>% group_by(GenClass, TYPE) %>%
                 min=min(norm_sites), max=max(norm_sites)) %>% filter(TYPE=="r_sites") %>%
                 print(n=50)
 
+# Or total sites (for text)
+res_total <- gerp_tib %>% left_join(meta_tib) %>% mutate(sites=TOT_DEL-(HOM_DEL/2)) %>%
+      select(Indiv, GenClass, sites, TOT_CALLS) %>%
+      mutate(cov=TOT_CALLS/length(allgerp_tib$V2), norm_sites=sites/cov) %>%
+      group_by(GenClass) %>% summarize(n=n(), avg=mean(norm_sites),
+        sd=sd(norm_sites), se=sd/sqrt(n), min=min(norm_sites), max=max(norm_sites)) %>%
+      print(n=50)
+
+data_tib %>% select(Indiv, GenClass, m_sites, r_sites, TOT_CALLS) %>%
+        group_by(GenClass) %>% pivot_longer(cols=c(m_sites, r_sites),
+                                          names_to="TYPE", values_to="sites") %>%
+        mutate(cov=TOT_CALLS/length(allgerp_tib$V2), norm_sites=sites/cov)
 # Also check number of realized load sites for F5 and F6 together
 extr_tib %>% mutate(GenClass=case_when(GenClass=='F5' | GenClass=='F6' ~ 'F5-6', TRUE ~ GenClass)) %>%
               group_by(GenClass, TYPE) %>%

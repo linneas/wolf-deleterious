@@ -1,138 +1,138 @@
 #################
-### Make SFS for Russians and Founders, only X chromosome!
+### SUPPLEMENTARY FIGURE 2
+# Comparing Vep/Sift deleteriousness with Sneath and Miyata
+# Thresholds 1.85 for Miyata and 25 for Sneath (correspond to ~35% and 30% respectively)
 
-#loading R libraries
+# loading R libraries
 require(vcfR)
 require(tidyverse)
 
 rm(list=ls())
 plotdir<-"plots/"
-filt="mac1"
+filt="mac2"
 anc=paste("Pol.2out.",filt, sep="")
 
 # Reading in the data
-Xvcf_file=paste("vcf/",anc,"/74Females.chrX.vepfinal.wfm.vcf", sep="")
+vcf_file=paste("vcf/",anc,"/100S95F14R.chr1-38.vepfinal.wfm.vcf", sep="")
 meta_file="help_files/metadata.txt"
 vep_file=paste("vep/",anc,"/veptypes.chr1-X.txt", sep="")
 sift_file=paste("vep/",anc,"/sifttypes.chr1-X.txt", sep="")
-Xvcf <- read.vcfR(Xvcf_file)
+aa_file=paste("aa_prop/100S95F14R.mac2.properties.all.txt")
+vcf <- read.vcfR(vcf_file)
 meta_tib<-meta_file %>% read.table(header=TRUE) %>% as_tibble() %>% rename(Indiv=UU_ID, Cat=Category)
 vep_tib <- vep_file %>% read.table(header=TRUE) %>% as_tibble() %>% mutate(CHROM = as.character(CHROM))
 sift_tib <- sift_file %>% read.table(header=TRUE) %>% as_tibble() %>% mutate(CHROM = as.character(CHROM))
+aa_tib <- aa_file %>% read.table(header=TRUE)%>% as_tibble() %>% mutate(CHROM = as.character(CHROM))
+
+
 
 # Convert to tidy format
-tidy_Xvcf <- vcfR2tidy(Xvcf,
-  info_fields=c("AA"),
-  format_fields=c("GT"),
-  dot_is_NA=TRUE)
+tidy_vcf <- vcfR2tidy(vcf,
+	info_fields=c("AA"),
+	format_fields=c("GT"),
+	dot_is_NA=TRUE)
 
-# Get numbers of SNPs per group and type
-Xgt_der <- tidy_Xvcf$gt %>% filter(!is.na(gt_GT)) %>%
-              inner_join(tidy_Xvcf$fix)  %>% inner_join(vep_tib) %>% left_join(sift_tib) %>%
-              mutate(new_gt=case_when((ALT==AA & gt_GT=='0/0') ~'1/1',
-                                    (ALT==AA & gt_GT=='1/1') ~'0/0', TRUE ~ gt_GT)) %>%
-              filter(new_gt!="0/0") %>% select(CHROM, POS, Indiv, VEP_TYPE, SIFT_TYPE,new_gt) %>%
-              inner_join(meta_tib)
-# Table with counts per sift type and group
-Xgt_der %>% select(CHROM, POS, Cat, VEP_TYPE, SIFT_TYPE) %>%
-                mutate(Grp=ifelse((Cat=="1983-1990" | Cat=="1991-1998" | Cat=="1999-2006" | Cat=="2007-2014S"), "Original", Cat)) %>%
-                group_by(CHROM, POS,VEP_TYPE,SIFT_TYPE,Grp) %>% summarize(indCount=n()) %>%
-                group_by(VEP_TYPE, SIFT_TYPE, Grp) %>% summarize(count=n()) %>% print(n=50)
+# Extracting relevant data and combine tibbles
+# First a big general tibble
+full_tib <- tidy_vcf$gt %>% filter(!is.na(gt_GT)) %>%
+	inner_join(tidy_vcf$fix) %>% left_join(aa_tib) %>%
+	left_join(vep_tib) %>% left_join(sift_tib) %>%
+	mutate(new_gt=case_when((ALT==AA & gt_GT=='0/0') ~'1/1', (ALT==AA & gt_GT=='1/1') ~'0/0', TRUE ~ gt_GT), Exchgb=if_else(ALT==AA, Exchgb2, Exchgb1))
 
+# Then a table for deleterious SIFT (like before, just for comparison)
+sift_tib <- full_tib %>% filter(SIFT_TYPE == 'deleterious') %>%
+ 	mutate(new_gt=case_when((ALT==AA & gt_GT=='0/0') ~'1/1',
+		(ALT==AA & gt_GT=='1/1') ~'0/0', TRUE ~ gt_GT)) %>%
+	group_by(Indiv, new_gt) %>% summarize(count=n()) %>% ungroup() %>%
+	mutate_if(is.character, str_replace_all, pattern = "/", replacement = "") %>%
+	 pivot_wider(names_from=new_gt, names_prefix="gt", values_from=count) %>%
+	mutate(sum=gt00+gt01+gt11) %>% inner_join(meta_tib)  %>%
+	mutate(hetfrq=gt01/sum, homderfrq=gt11/sum, deralfreq=(gt11*2+gt01)/(sum*2)) %>%
+	select(Indiv,Cat,hetfrq,homderfrq,deralfreq,GenClass) %>% mutate(DEL_TYPE="SIFT")
 
+# And for each different AA repacement score
+# Miyata
+miyata_tib <- full_tib %>% filter(Miyata>1.85) %>%
+ 	mutate(new_gt=case_when((ALT==AA & gt_GT=='0/0') ~'1/1',
+		(ALT==AA & gt_GT=='1/1') ~'0/0', TRUE ~ gt_GT)) %>%
+	group_by(Indiv, new_gt) %>% summarize(count=n()) %>% ungroup() %>%
+	mutate_if(is.character, str_replace_all, pattern = "/", replacement = "") %>%
+	 pivot_wider(names_from=new_gt, names_prefix="gt", values_from=count) %>%
+	mutate(sum=gt00+gt01+gt11) %>% inner_join(meta_tib)  %>%
+	mutate(hetfrq=gt01/sum, homderfrq=gt11/sum, deralfreq=(gt11*2+gt01)/(sum*2))  %>%
+	select(Indiv,Cat,hetfrq,homderfrq,deralfreq,GenClass) %>% mutate(DEL_TYPE="Miyata")
 
-# Use the Russian females, only using sites where we have no missing data
-#(8 females = 16 alleles)), and only look at non-PAR (Pos >7Mb)
-russianX_tib <- tidy_Xvcf$gt %>% filter(!is.na(gt_GT)) %>%
-	inner_join(tidy_Xvcf$fix) %>% inner_join(meta_tib) %>%
-  filter(CHROM=="X" & POS>7000000) %>%
-	filter(Cat=='Russia') %>%
-  inner_join(vep_tib) %>% left_join(sift_tib) %>%
-	rename(Type=VEP_TYPE) %>% filter(Type=='synonymous' | SIFT_TYPE == 'deleterious') %>%
-	mutate(new_gt=case_when((ALT==AA & gt_GT=='0/0') ~'1/1', (ALT==AA & gt_GT=='1/1') ~'0/0', TRUE ~ gt_GT)) %>%
-	mutate(Type=ifelse(Type=='missense', 'deleterious','synonymous')) %>%
-	select(CHROM, POS, Indiv, new_gt, Type) %>%
-	group_by(CHROM, POS, new_gt, Type) %>% summarize(count=n()) %>%
-  mutate(ancestral=case_when((new_gt=='0/0') ~ (count*2.0),
-                              (new_gt=='0/1') ~ (count*1.0),TRUE ~ 0),
-        derived=case_when((new_gt=='1/1') ~ (count*2.0),
-                              (new_gt=='0/1') ~ (count*1.0),TRUE ~ 0)) %>%
-	group_by(CHROM, POS, Type) %>%  summarize(totanc=sum(ancestral), totder=sum(derived)) %>%
-	filter(totanc+totder==16 & totder>0) %>%
-  group_by(Type, totder) %>% summarize(count=n()) %>%
-  mutate(frac=ifelse(Type=='deleterious',
-    count/sum(count[Type=='deleterious']),
-    count/sum(count[Type=='synonymous']))) %>% ungroup() %>%
-    mutate(Cat="Russia")
+#Sneath
+sneath_tib <- full_tib %>% filter(Sneath>25) %>%
+ 	mutate(new_gt=case_when((ALT==AA & gt_GT=='0/0') ~'1/1',
+		(ALT==AA & gt_GT=='1/1') ~'0/0', TRUE ~ gt_GT)) %>%
+	group_by(Indiv, new_gt) %>% summarize(count=n()) %>% ungroup() %>%
+	mutate_if(is.character, str_replace_all, pattern = "/", replacement = "") %>%
+	 pivot_wider(names_from=new_gt, names_prefix="gt", values_from=count) %>%
+	mutate(sum=gt00+gt01+gt11) %>% inner_join(meta_tib)  %>%
+	mutate(hetfrq=gt01/sum, homderfrq=gt11/sum, deralfreq=(gt11*2+gt01)/(sum*2))  %>%
+	select(Indiv,Cat,hetfrq,homderfrq,deralfreq,GenClass) %>% mutate(DEL_TYPE="Sneath")
 
-# Add missing lines
-for(i in 1:16) {
-  v<-(russianX_tib$totder[russianX_tib$Type=="deleterious"]==i)
-  if(any(v)==FALSE) {
-    show(paste("there is no value for", i))
-    russianX_tib <- russianX_tib %>% add_row(Type="deleterious", totder=i, count=0, frac=0.0, Cat="Russia", .before=i)
-  }
-}
+# COMBINE
+comb_tib <- bind_rows(sift_tib,sneath_tib,miyata_tib) %>%
+						mutate(Grp=case_when(GenClass=='Finland' | GenClass=='Russia' | GenClass=='NR_immigrants' ~ 'Reference',
+						TRUE ~ 'Scandinavia')) %>%
+						mutate(GenClass=case_when(GenClass=="R_immigrants" ~ "Reproducing immigrants",
+					                            GenClass=="NR_immigrants" ~ "Non-reproducing immigrants",
+					                            TRUE ~ GenClass))
+# Make factors
+comb_tib$GenClass <- factor(comb_tib$GenClass, levels = c("Finland", "Russia", "Non-reproducing immigrants", "Founders", "F1", "F2", "F3", "F4", "F5", "F6", "Reproducing immigrants", "L1", "L2", "L3"))
+comb_tib$DEL_TYPE <- factor(comb_tib$DEL_TYPE, levels = c("SIFT", "Miyata", "Sneath"))
 
-# Also check founders (ONLY non par!!)
-founderX_tib <- tidy_Xvcf$gt %>% filter(!is.na(gt_GT)) %>%
-  	inner_join(tidy_Xvcf$fix) %>% filter(Indiv=="D-85-01" | Indiv=="FM1" | Indiv == "FM2") %>%
-    filter(CHROM=="X" & POS>7000000) %>%
-  	inner_join(vep_tib) %>% left_join(sift_tib) %>%
-  	rename(Type=VEP_TYPE) %>% filter(Type=='synonymous' | SIFT_TYPE == 'deleterious') %>%
-  	mutate(new_gt=case_when((ALT==AA & gt_GT=='0/0') ~'1/1', (ALT==AA & gt_GT=='1/1') ~'0/0', TRUE ~ gt_GT)) %>%
-  	mutate(Type=ifelse(Type=='missense', 'deleterious','synonymous')) %>%
-  	select(CHROM, POS, Indiv, new_gt, Type) %>%
-    mutate(new_gt=case_when((Indiv=="FM1" | Indiv == "FM2") & new_gt=='0/0' ~ '0',
-                            (Indiv=="FM1" | Indiv == "FM2") & new_gt=='1/1' ~ '1', TRUE ~ new_gt)) %>%
-  	group_by(CHROM, POS, new_gt, Type) %>% summarize(count=n()) %>%
-  	mutate(ancestral=case_when((new_gt=='0/0') ~ (count*2.0), (new_gt=='0/1') ~ (count*1.0),
-                              new_gt=='0' ~ count*1, TRUE ~ 0),
-          derived=case_when((new_gt=='1/1') ~ (count*2.0), (new_gt=='0/1') ~ (count*1.0),
-                              new_gt=='1' ~ count*1, TRUE ~ 0)) %>%
-  	group_by(CHROM, POS, Type) %>%  summarize(totanc=sum(ancestral), totder=sum(derived)) %>%
-  	filter(totanc+totder==4 && totder>0) %>%  group_by(Type, totder) %>% summarize(count=n()) %>%
-    mutate(frac=ifelse(Type=='deleterious',
-                      count/sum(count[Type=='deleterious']),
-                      count/sum(count[Type=='synonymous']))) %>%
-    ungroup() %>% mutate(Cat="Founders")
+################################# PLOTTING
+# # # # # Heterozygous sites
 
-    # Add missing rows
-for(i in 1:4) {
-  v<-(founderX_tib$totder[founderX_tib$Type=="deleterious"]==i)
-  if(any(v)==FALSE) {
-    show(paste("there is no value for", i))
-    founderX_tib <- founderX_tib %>% add_row(Type="deleterious", totder=i, count=0, frac=0.0, Cat="Founders", .before=i)
-  }
-}
+phet<- ggplot(comb_tib, aes(x=GenClass, y=hetfrq))+
+  geom_violin(fill="white", alpha=0.5)+
+  facet_grid(DEL_TYPE~factor(Grp, level=c("Reference","Scandinavia")), scales="free", space="free_x") +
+  labs(x=NULL,y="proportion of heterozygous genotypes")+
+  theme(panel.grid.major = element_line(colour = 'white'),
+        panel.background = element_rect(fill = '#f5f4e6', colour = '#FFFDF8'),
+        axis.text.x = element_text(angle = 45, hjust=1),
+				strip.text.x = element_text(size=12),
+				strip.text.y = element_text(size=12),
+        legend.box = "vertical") +
+  theme(legend.key=element_rect(fill='white', colour='NA')) +
+	geom_point(colour="grey", size=1, alpha=0.5)
 
-combX_tib<-bind_rows(russianX_tib, founderX_tib)
-combX_tib$Cat<-factor(combX_tib$Cat, levels = c("Russia", "Founders"))
-combX_tib$Type <- factor(combX_tib$Type, levels = c("synonymous", "deleterious"))
+output <- paste(plotdir,"FigureS2A.pdf", sep="")
+ggsave(
+  output,
+  plot = phet,
+  scale = 1,
+  width = 7,
+  height = 9,
+  unit = "in",
+  dpi = 300,
+  limitsize = TRUE)
 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# # # # # Homozygous derived sites
+phom<-ggplot(comb_tib,aes(x=GenClass, y=homderfrq))+
+geom_violin(fill="white", alpha=0.5)+
+facet_grid(DEL_TYPE~factor(Grp, level=c("Reference","Scandinavia")), scales="free", space="free_x") +
+  labs(x=NULL,y="proportion of homozygous derived genotypes")+
+  theme(panel.grid.major = element_line(colour = 'white'),
+        panel.background = element_rect(fill = '#f5f4e6', colour = '#FFFDF8'),
+        axis.text.x = element_text(angle = 45, hjust=1),
+				strip.text.x = element_text(size=12),
+				strip.text.y = element_text(size=12),
+        legend.box = "vertical") +
+  theme(legend.key=element_rect(fill='white', colour='NA')) +
+	geom_point(colour="grey", size=1, alpha=0.5)
 
-################################################################################
-# COMBINE IN SINGLE PLOT USING FACET
-
-outfile=paste(plotdir,"FigureS2.pdf", sep="")
-
-p<-ggplot(combX_tib, aes(x=totder, y=frac, fill=Type)) +
-    geom_bar(position="dodge", stat="identity", alpha = 0.5) +
-    scale_fill_manual(values=c("lightblue", "dodgerblue4")) +
-    facet_wrap(~Cat, scales="free") +
-    labs(x="Derived alleles",y="Fraction of sites")+
-    theme(panel.grid.major = element_line(colour = 'white'),
-      panel.background = element_rect(fill = '#f5f4e6', colour = '#FFFDF8'),
-      panel.spacing = unit(2, "lines"),
-      legend.position="bottom",
-      legend.title=element_blank(),
-      strip.background = element_blank(),
-      strip.text.x = element_blank())
-
-ggsave(outfile,
-	plot = p,
-	scale = 1,
-	dpi = 300,
-	limitsize = TRUE,
-  width=7.5,
-  height=4)
+output <- paste(plotdir,"FigureS2B.pdf", sep="")
+ggsave(
+  output,
+  plot = phom,
+  scale = 1,
+  width = 7,
+  height = 9,
+  unit = "in",
+  dpi = 300,
+  limitsize = TRUE)
