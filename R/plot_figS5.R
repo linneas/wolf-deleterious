@@ -6,7 +6,7 @@
 require(vcfR)
 require(tidyverse)
 
-m(list=ls())
+rm(list=ls())
 plotdir<-"plots/"
 filt="mac1"
 anc=paste("Pol.2out.",filt, sep="")
@@ -100,3 +100,10 @@ ggsave(outfile,
 	limitsize = TRUE,
   width=7.5,
   height=4)
+
+  ############################
+  # Number of deleterious missense that have GERP > 4.
+  # Note that in this script we use the filtering MAC=>1 to not loose singleton
+  # sites in the SFS. The number given in the manuscript is for MAC=>2
+  sift_tib %>% inner_join(gerp_tib) %>% filter(SIFT_TYPE=="deleterious" & Gerp>4)
+  #2569 sites

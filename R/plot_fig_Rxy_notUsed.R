@@ -1,8 +1,7 @@
 #################
-### R code for plotting Figure S1
-### Extension of the R_xy analysis, with subsamples of neutral categories
+### R code for plotting Figure 3
+### R_xy analysis to compare relative numbers of alleles between populations
 
-### THIS FIRST PART IS IDENTICAL TO plot_fig3.R
 rm(list=ls())
 
 # Setting up, loading R libraries and set working directory
@@ -104,7 +103,10 @@ norm_FL <- (intr_dfreq_tib %>%  mutate(fact=dfreqFounders*(1-dfreqLast)) %>%
             ungroup() %>% select(fact) %>% filter(!is.na(fact)) %>%
             summarize(s=sum(fact)))[[1]]
 
+
+
 ##########################################################################
+### CALCULATE RXY FOR VEP CATEGORIES, USING BLOCK JACKKNIFE REPLICATES
 
 # First, make combined table to start with
 big_tib <- combined_gt %>% filter(!is.na(gt_GT)) %>%
@@ -124,139 +126,151 @@ big_tib <- combined_gt %>% filter(!is.na(gt_GT)) %>%
             derived=case_when((new_gt=='1/1') ~ (count*2.0),
                               (new_gt=='0/1') ~ (count*1.0), TRUE ~ 0))
 
+# Then, set the categories to look at
+type<-c("nonsense","deleterious","synonymous","modifier","tolerated")
 
-################################################################################
-# HERE STARTS THE PART UNIQUE TO FIG S1
+# Number of Jackknife replicates
+num_groups = 100
 
-# REPEAT WITH SUBSAMPLE OF "NEUTRAL" CATEGORIES WITH THE SAME SFS AS DELETERIOUS
-
-del_tib <- big_tib %>% filter(Type=="deleterious") %>% group_by(CHROM, POS, Pop) %>%
-      summarize(totanc=sum(ancestral), totder=sum(derived)) %>%
-      mutate(dfreq=totder/(totanc+totder)) %>% ungroup() %>%
-      select(CHROM, POS, Pop, dfreq) %>% group_by(CHROM,POS) %>%
-      pivot_wider(names_from=Pop, names_prefix="dfreq", values_from=dfreq)
-
-# Rxy for deleterious, Last to Founders
-del_LF <- (del_tib %>%  mutate(fact=dfreqLast*(1-dfreqFounders)) %>%
-          ungroup() %>% select(fact) %>% filter(!is.na(fact)) %>%
-          summarize(s=sum(fact)))[[1]]
-
-del_FL <- (del_tib %>%  mutate(fact=dfreqFounders*(1-dfreqLast)) %>%
-          ungroup() %>% select(fact) %>% filter(!is.na(fact)) %>%
-          summarize(s=sum(fact)))[[1]]
-Rxy_LF<-(del_LF/norm_LF)/(del_FL/norm_FL)
-
-# Check how many deleterious sites we have of each starting frequency
-del_tib %>% ungroup() %>% select(dfreqFounders) %>% group_by(dfreqFounders) %>% summarize(n=n())
-
-syn_tib <- big_tib %>% filter(Type=="synonymous") %>% group_by(CHROM, POS, Pop) %>%
-      summarize(totanc=sum(ancestral), totder=sum(derived)) %>%
-      mutate(dfreq=totder/(totanc+totder)) %>% ungroup() %>%
-      select(CHROM, POS, Pop, dfreq) %>% group_by(CHROM,POS) %>%
-      pivot_wider(names_from=Pop, names_prefix="dfreq", values_from=dfreq)
-
-syn_tib %>% ungroup() %>% select(dfreqFounders) %>% group_by(dfreqFounders) %>% summarize(n=n())
-
-# Save previous run before rerun
-resample_for_first_rev<-resample_tib
-# Make empty tibble to save values in
-resample_tib <- tibble(i=integer(), LR=numeric(), type=character(),
+# Create tibble for saving all the values
+all_val_tib <- tibble(i=integer(), type=character(), LR=numeric(),
                       RL=numeric(), FR=numeric(), RF=numeric(),
                       FiR=numeric(), RFi=numeric(), LF=numeric(), FL=numeric())
 
-type2<-c("synonymous","tolerated","modifier")
-iterations=1000
-for (t in 1:length(type2)) {
-  temp_tib <- new_big_tib %>% filter(Type==type2[t]) %>% group_by(CHROM, POS, Pop) %>%
-        summarize(totanc=sum(ancestral), totder=sum(derived)) %>%
-        mutate(dfreq=totder/(totanc+totder)) %>% ungroup() %>%
-        select(CHROM, POS, Pop, dfreq) %>% group_by(CHROM,POS) %>%
-        pivot_wider(names_from=Pop, names_prefix="dfreq", values_from=dfreq)
+# Run The replicates for each category
+for (t in 1:length(type)) {
 
-  new_t<-paste("subsampled_", type2[t], sep="")
+  show(paste("subsetting big tib for", type[t]))
+  subset_tib <- big_tib %>% filter(Type==type[t])
 
-  for (i in 1:iterations) {
-    show(paste("Category:", type2[t], "Iteration:", i))
-    t0<-syn_tib %>% filter(dfreqFounders==0) %>% ungroup() %>%  slice_sample(n=3440)
-    t1<-temp_tib %>% filter(dfreqFounders==(1/6)) %>% ungroup() %>%  slice_sample(n=670)
-    t2<-temp_tib %>% filter(dfreqFounders==(2/6)) %>% ungroup() %>%  slice_sample(n=275)
-    t3<-temp_tib %>% filter(dfreqFounders==0.5) %>% ungroup() %>%  slice_sample(n=189)
-    t4<-temp_tib %>% filter(dfreqFounders==(4/6)) %>% ungroup() %>%  slice_sample(n=107)
-    t5<-temp_tib %>% filter(dfreqFounders==(5/6)) %>% ungroup() %>%  slice_sample(n=73)
-    t6<-temp_tib %>% filter(dfreqFounders==1) %>% ungroup() %>%  slice_sample(n=48)
-    tt<-t0 %>% add_row(t1) %>% add_row(t2) %>% add_row(t3) %>% add_row(t4) %>%
-            add_row(t5) %>% add_row(t6)
+  wanted_sites <- subset_tib %>% ungroup() %>%
+                  select(CHROM,POS) %>% group_by(CHROM,POS) %>% summarize()
+
+  gl<- wanted_sites %>%
+     group_by((row_number()-1) %/% (n()/num_groups)) %>%
+     nest %>% pull(data)
+
+  for (i in 1:num_groups) {
+    show(paste("Type:", type[t], "Iteration:", i))
+    temp_tib <- subset_tib %>% anti_join(gl[[i]]) %>% group_by(CHROM, POS, Pop) %>%
+          summarize(totanc=sum(ancestral), totder=sum(derived)) %>%
+          mutate(dfreq=totder/(totanc+totder)) %>% ungroup() %>%
+          select(CHROM, POS, Pop, dfreq) %>% group_by(CHROM,POS) %>%
+          pivot_wider(names_from=Pop, names_prefix="dfreq", values_from=dfreq)
 
     # COMPARE LAST WITH RUSSIA
-    tmp_LR <- (tt %>%  mutate(fact=dfreqLast*(1-dfreqRussia)) %>%
+    tmp_LR <- (temp_tib %>%  mutate(fact=dfreqLast*(1-dfreqRussia)) %>%
               ungroup() %>% select(fact) %>% filter(!is.na(fact)) %>%
               summarize(s=sum(fact)))[[1]]
 
-    tmp_RL <- (tt %>%  mutate(fact=dfreqRussia*(1-dfreqLast)) %>%
+    tmp_RL <- (temp_tib %>%  mutate(fact=dfreqRussia*(1-dfreqLast)) %>%
               ungroup() %>% select(fact) %>% filter(!is.na(fact)) %>%
               summarize(s=sum(fact)))[[1]]
 
     # COMPARE FOUNDER WITH RUSSIA
-    tmp_FR <- (tt %>%  mutate(fact=dfreqFounders*(1-dfreqRussia)) %>%
+    tmp_FR <- (temp_tib %>%  mutate(fact=dfreqFounders*(1-dfreqRussia)) %>%
               ungroup() %>% select(fact) %>% filter(!is.na(fact)) %>%
               summarize(s=sum(fact)))[[1]]
 
-    tmp_RF <- (tt %>%  mutate(fact=dfreqRussia*(1-dfreqFounders)) %>%
+    tmp_RF <- (temp_tib %>%  mutate(fact=dfreqRussia*(1-dfreqFounders)) %>%
               ungroup() %>% select(fact) %>% filter(!is.na(fact)) %>%
               summarize(s=sum(fact)))[[1]]
 
     # COMPARE FINNISH WITH RUSSIA
-    tmp_FiR <- (tt %>%  mutate(fact=dfreqFinland*(1-dfreqRussia)) %>%
+    tmp_FiR <- (temp_tib %>%  mutate(fact=dfreqFinland*(1-dfreqRussia)) %>%
               ungroup() %>% select(fact) %>% filter(!is.na(fact)) %>%
               summarize(s=sum(fact)))[[1]]
 
-    tmp_RFi <- (tt %>%  mutate(fact=dfreqRussia*(1-dfreqFinland)) %>%
+    tmp_RFi <- (temp_tib %>%  mutate(fact=dfreqRussia*(1-dfreqFinland)) %>%
               ungroup() %>% select(fact) %>% filter(!is.na(fact)) %>%
               summarize(s=sum(fact)))[[1]]
 
     # COMPARE LAST WITH FOUNDERS
-    tmp_LF <- (tt %>%  mutate(fact=dfreqLast*(1-dfreqFounders)) %>%
+    tmp_LF <- (temp_tib %>%  mutate(fact=dfreqLast*(1-dfreqFounders)) %>%
               ungroup() %>% select(fact) %>% filter(!is.na(fact)) %>%
               summarize(s=sum(fact)))[[1]]
 
-    tmp_FL <- (tt %>%  mutate(fact=dfreqFounders*(1-dfreqLast)) %>%
+    tmp_FL <- (temp_tib %>%  mutate(fact=dfreqFounders*(1-dfreqLast)) %>%
               ungroup() %>% select(fact) %>% filter(!is.na(fact)) %>%
               summarize(s=sum(fact)))[[1]]
+
 
     #ADD ALL NUMBERS
-
-    resample_tib<- add_row(resample_tib, i=i, type=new_t, LR=tmp_LR,
+    all_val_tib<- add_row(all_val_tib, i=i, type=type[t], LR=tmp_LR,
                           RL=tmp_RL, FR=tmp_FR, RF=tmp_RF,
                           FiR=tmp_FiR, RFi=tmp_RFi, LF=tmp_LF, FL=tmp_FL)
-    }
+  }
 }
 
+
 # Calculate Rxy
-rxy_resamp_tib<-resample_tib %>% mutate(Last=(LR/norm_LR)/(RL/norm_RL),
+rxy_tib<-all_val_tib %>% mutate(Last=(LR/norm_LR)/(RL/norm_RL),
                                 Founder=(FR/norm_FR)/(RF/norm_RF),
                                 Finland=(FiR/norm_FiR)/(RFi/norm_RFi),
                                 Last2Founder=(LF/norm_LF)/(FL/norm_FL)) %>%
         pivot_longer(Last:Last2Founder, names_to="Pop", values_to="Rxy")
 
-
-# Add this to other categories (but remove unwanted) before plotting
-new_rxy_tib<- rxy_tib %>% add_row(rxy_resamp_tib) %>%
-            filter(Pop=="Last2Founder") %>%
-            filter(type!="nonsense") %>%
-            mutate_if(is.character, str_replace_all, pattern = "_", replacement = " ")
+# Make factors
+rxy_tib$Pop<-as.factor(rxy_tib$Pop)
+rxy_tib$type <- factor(rxy_tib$type, levels = c("modifier", "synonymous", "tolerated", "deleterious", "nonsense"))
 
 
-new_rxy_tib$type <- factor(new_rxy_tib$type, levels = c("deleterious", "subsampled tolerated", "tolerated", "subsampled synonymous", "synonymous", "subsampled modifier", "modifier"))
 
-# PLOT RESAMPLING OF ALL "NEUTRAL" CATEGORIES
-outfile=paste(plotdir,"FigureS1.20221102.pdf", sep="")
+
+################################################################################
+# Plot Last scandinavians vs Russia and Founders
+
+red_rxy <- rxy_tib %>% filter(Pop=="Last2Founder" | Pop=="Last")
+red_rxy$Pop <- factor(red_rxy$Pop, levels = c("Last","Last2Founder"))
+red_rxy$type <- factor(red_rxy$type, levels = c("nonsense", "deleterious", "tolerated", "synonymous", "modifier"))
+
+outfile=paste(plotdir,"Figure3.revision.pdf", sep="")
 
 # plot boxes vertically
-p<-ggplot(new_rxy_tib, aes(x=type, y=Rxy)) +
+p<-ggplot(red_rxy, aes(x=type, y=Rxy)) +
   geom_boxplot(aes(colour=type, fill=type), alpha=0.5) +
   coord_flip() +
-  scale_color_manual(values=c("dodgerblue4", "seagreen4", "seagreen4", "lightblue", "lightblue", "darkgray", "darkgray")) +
-  scale_fill_manual(values=c("dodgerblue4", "seagreen4", "seagreen4", "lightblue", "lightblue", "darkgray", "darkgray")) +
+  facet_wrap(~Pop) +
+  scale_color_manual(values=c("chocolate", "dodgerblue4", "seagreen4", "lightblue", "darkgray")) +
+  scale_fill_manual(values=c("chocolate", "dodgerblue4", "seagreen4", "lightblue", "darkgray")) +
+  theme(panel.grid.major = element_line(colour = 'white'),
+        panel.background = element_rect(fill = '#f5f4e6', colour = '#FFFDF8'),
+        strip.background = element_blank(),
+        strip.text.x = element_blank(),
+        legend.position="none") +
+  labs(x="", y=expression(R[XY]))
+
+ggsave(
+  outfile,
+  plot = p,
+  scale = 1,
+  dpi = 300,
+  limitsize = TRUE,
+  width=7,
+  height=3.5,
+)
+
+# SOME STATS
+lastvsrus_tib <- red_rxy %>% filter(Pop=="Last") %>% select(type, Rxy)
+lastvsfou_tib <- red_rxy  %>% filter(Pop=="Last2Founder") %>% select(type, Rxy)
+res1<-aov(Rxy ~ type, data=lastvsrus_tib)
+res2<-aov(Rxy ~ type, data=lastvsfou_tib)
+
+
+################################################################################
+# Plot Last candinavians vs Founders
+
+red_rxy <- rxy_tib %>% filter(Pop=="Last2Founder")
+red_rxy$type <- factor(red_rxy$type, levels = c("nonsense", "deleterious", "tolerated", "synonymous", "modifier"))
+
+outfile=paste(plotdir,"Figure.Rxy.LastvsFounder.pdf", sep="")
+
+# plot boxes vertically
+p<-ggplot(red_rxy, aes(x=type, y=Rxy)) +
+  geom_boxplot(aes(colour=type, fill=type), alpha=0.5) +
+  coord_flip() +
+  scale_color_manual(values=c("chocolate", "dodgerblue4", "seagreen4", "lightblue", "darkgray")) +
+  scale_fill_manual(values=c("chocolate", "dodgerblue4", "seagreen4", "lightblue", "darkgray")) +
   theme(panel.grid.major = element_line(colour = 'white'),
         panel.background = element_rect(fill = '#f5f4e6', colour = '#FFFDF8'),
         strip.background = element_blank(),
@@ -272,13 +286,4 @@ ggsave(
   limitsize = TRUE,
   width=5,
   height=4,
-)
-
-# Print a table with all subsampled Rxy-values
-write_csv(
-  rxy_resamp_tib,
-  paste(plotdir,"Table_subsample.20221102.csv", sep=""),
-  na = "NA",
-  append = FALSE,
-  progress = show_progress(),
 )

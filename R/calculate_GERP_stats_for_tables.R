@@ -122,22 +122,13 @@ gt_tib <- tidy_vcf$gt %>% filter(!is.na(gt_GT)) %>%
   inner_join(meta_tib)
 
 # How many sites in total are highly deleterious?
-high_del<-tidy_vcf$gt %>% filter(!is.na(gt_GT)) %>% inner_join(tidy_vcf$fix) %>%
-      inner_join(vep_tib) %>% left_join(sift_tib) %>%rename(Type=VEP_TYPE) %>%
-      filter(Type=='synonymous' | SIFT_TYPE == 'deleterious') %>%
-      mutate(new_gt=case_when((ALT==AA & gt_GT=='0/0') ~'1/1',
-                              (ALT==AA & gt_GT=='1/1') ~'0/0', TRUE ~ gt_GT)) %>%
-      inner_join(allgerp_tib) %>%
-      mutate(Type=case_when((Type=='missense' & Gerp>4) ~ 'deleterious_high',
-                                (Type=='missense' & Gerp<=4) ~ 'deleterious_low',
-                                 TRUE ~'synonymous')) %>%
-      group_by(Indiv, new_gt, Type) %>% filter(Type=="deleterious_high") %>%
-       ungroup() %>% select(CHROM, POS, Indiv) %>% group_by(CHROM, POS) %>% summarize(n=n())
-length(high_del$POS)
+high_del<-sift_tib %>% inner_join(allgerp_tib) %>% filter(SIFT_TYPE=="deleterious" & Gerp>4)
 #2027
 
 # And summarize highly deleterious per group (normalizing after covered sites)
+# (Numbers for the last section in the Results part)
 gt_tib %>% select(Type, gt11, sum, GenClass) %>%
+            mutate(GenClass=case_when(GenClass=='F5' | GenClass=='F6' ~ 'F5-6', TRUE ~ GenClass)) %>%
 						filter(Type=="deleterious_high") %>% mutate(fracCov=sum/length(high_del$POS)) %>%
 						mutate(newGt11=gt11/fracCov) %>% group_by(GenClass) %>%
 						summarize(n=n(), mean=mean(newGt11), sd=sd(newGt11), max=max(newGt11), min=min(newGt11))

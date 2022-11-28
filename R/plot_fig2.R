@@ -92,17 +92,17 @@ ggsave(
 ###########################################################
 # Some numbers for paper
 # Sites variable in founder
-allfreq %>% filter(totder_Founder!=6)
+allfreq %>% filter(totder_Founders!=6)
 # All sites variable in founder that has fixed in F5-F6
-allfreq %>% filter(totder_Founder!=6 & (Sc_derFreq==1 |Sc_derFreq==0))
+allfreq %>% filter(totder_Founders!=6 & (Sc_derFreq==1 |Sc_derFreq==0))
 # Sites fixed for the least common variant in founders
-allfreq %>% filter((totder_Founder==4 | totder_Founder==5) & (Sc_derFreq==0))
-allfreq %>% filter((totder_Founder==1 | totder_Founder==2) & (Sc_derFreq==1))
+allfreq %>% filter((totder_Founders==4 | totder_Founders==5) & (Sc_derFreq==0))
+allfreq %>% filter((totder_Founders==1 | totder_Founders==2) & (Sc_derFreq==1))
 # Startfreq of 0.5, now fixed for ancestral
-allfreq %>% filter((totder_Founder==3) & (Sc_derFreq==0))
+allfreq %>% filter((totder_Founders==3) & (Sc_derFreq==0))
 
 # Start freq of 0.5, no fixed for Derived
-allfreq %>% filter((totder_Founder==3) & (Sc_derFreq==1))
+allfreq %>% filter((totder_Founders==3) & (Sc_derFreq==1))
 
 # Sites fixed in F5-F6 that are not fixed in L1-L3
-allfreq %>% filter(totder_Founder!=6 & (Sc_derFreq==1 |Sc_derFreq==0) &(Id_derFreq!=1 &Id_derFreq!=0) )
+allfreq %>% filter(totder_Founders!=6 & (Sc_derFreq==1 |Sc_derFreq==0) &(Id_derFreq!=1 &Id_derFreq!=0) )

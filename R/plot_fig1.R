@@ -101,7 +101,7 @@ comb_tib$Type <- factor(comb_tib$Type, levels = c("modifier", "synonymous", "tol
 # PLOT (combine with facet)
 # Don't plot the bars for "zero derived"
 
-outfile=paste(plotdir,"Figure1.revision.pdf", sep="")
+outfile=paste(plotdir,"Figure1.revision2.pdf", sep="")
 
 p<-ggplot(comb_tib, aes(x=totder, y=frac, fill=Type)) +
     geom_bar(position="dodge", stat="identity", alpha = 0.5) +
@@ -114,7 +114,9 @@ p<-ggplot(comb_tib, aes(x=totder, y=frac, fill=Type)) +
       legend.position="bottom",
       legend.title=element_blank(),
       strip.background = element_blank(),
-      strip.text.x = element_blank())
+      strip.text.x = element_blank())+
+    annotate("text", x=-1, y=0.3, label= "A")+
+    +labs(tags="A")
 
 ggsave(outfile,
 	plot = p,
