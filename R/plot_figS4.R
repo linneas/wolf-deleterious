@@ -1,81 +1,109 @@
 #################
-### PLOTTING GERP SCORE DISTRIBUTIONS FOR ALL CLASSES OF VEP, AND GENOME WIDE
+### R code for plotting Figure S4, same as figure 1 but comparing low and high gerp
+### SFS for Russian and Founders (compare deleterious and synonymous)
 
-
-#Clear the workspace
-rm(list=ls())
-
-###############################################################################
-# Make DENSITY plot of synonymous and deleterious in the same figure
-# (on top of eachother)
+# Loading R libraries
+require(vcfR)
 require(tidyverse)
 
 rm(list=ls())
-plotdir="plots/"
-filt="mac2"
+plotdir<-"plots/"
+filt="mac1"
 anc=paste("Pol.2out.",filt, sep="")
 
-#Input files
-all_gerp_file=paste("gerp/canFam3/",anc,"/100S95F14R.chr1-38.allSNPs.rates.unique.bed", sep="")
-vep_gerp_file=paste("gerp/canFam3/",anc,"/100S95F14R.chr1-38.vepfinal.rates.unique.bed", sep="")
-mod_gerp_file=paste("gerp/canFam3/",anc,"/100S95F14R.chr1-38.modifier.rates.unique.bed", sep="")
+
+# Reading in the data
+vcf_file=paste("vcf/",anc,"/100S95F14R.chr1-38.vepfinal.wfm.vcf", sep="")
+meta_file="help_files/metadata.txt"
 vep_file=paste("vep/",anc,"/veptypes.chr1-X.txt", sep="")
 sift_file=paste("vep/",anc,"/sifttypes.chr1-X.txt", sep="")
-
-allgerp_tib <- all_gerp_file %>% read.table(header=FALSE) %>% as_tibble() %>%
-                rename(CHROM=V1, POS=V3, GERP=V5) %>%
-                mutate(CHROM = as.character(CHROM))
-gerp_tib<-vep_gerp_file %>% read.table(header=FALSE) %>% as_tibble() %>% rename(CHROM=V1, POS=V3, GERP=V5) %>%
-                mutate(CHROM = as.character(CHROM))
-mod_tib<-mod_gerp_file %>% read.table(header=FALSE) %>% as_tibble() %>% rename(CHROM=V1, POS=V3, GERP=V5) %>%
-                  mutate(CHROM = as.character(CHROM))
+gerp_file=paste("gerp/canFam3/",anc,"/100S95F14R.chr1-38.vepfinal.rates.unique.bed", sep="")
+vcf <- read.vcfR(vcf_file)
+meta_tib<-meta_file %>% read.table(header=TRUE) %>% as_tibble() %>% rename(Indiv=UU_ID, Cat=Category)
 vep_tib <- vep_file %>% read.table(header=TRUE) %>% as_tibble() %>% mutate(CHROM = as.character(CHROM))
 sift_tib <- sift_file %>% read.table(header=TRUE) %>% as_tibble() %>% mutate(CHROM = as.character(CHROM))
+gerp_tib <- gerp_file %>% read.table(header=FALSE) %>% as_tibble() %>% rename(Gerp=V5, CHROM=V1, POS=V3) %>% mutate(CHROM = as.character(CHROM))
 
-comb_tib<-gerp_tib %>% add_row(mod_tib)
+# Convert to tidy format
+tidy_vcf <- vcfR2tidy(vcf,
+  info_fields=c("AA"),
+  format_fields=c("GT"),
+  dot_is_NA=TRUE)
 
-tidy_tab <- comb_tib %>% inner_join(vep_tib) %>% left_join(sift_tib) %>%
-      rename(Type=VEP_TYPE) %>%
-      mutate(Type=case_when((SIFT_TYPE=="deleterious" | SIFT_TYPE=="tolerated") ~ SIFT_TYPE,
-                      (is.na(Type) ~ 'modifier'),
-                      TRUE ~ Type)) %>%
-      mutate(Region="Genic") %>%
-      select(CHROM, POS, GERP, Type, Region)
+# Only need founders and russians
+# (only sites where we have no missing data (3 ind = 6 alleles for founders
+# and 28 alleles for Russians) AND at least 1 derived allele!)
+founder_tib <- tidy_vcf$gt %>% filter(!is.na(gt_GT)) %>%
+	inner_join(tidy_vcf$fix) %>% filter(Indiv=="D-85-01" | Indiv=="FM1" | Indiv == "FM2") %>%
+	inner_join(vep_tib) %>% left_join(sift_tib) %>%
+	rename(Type=VEP_TYPE) %>% filter(Type=='synonymous' | SIFT_TYPE == 'deleterious') %>%
+	mutate(new_gt=case_when((ALT==AA & gt_GT=='0/0') ~'1/1', (ALT==AA & gt_GT=='1/1') ~'0/0', TRUE ~ gt_GT)) %>%
+  inner_join(gerp_tib) %>%
+	mutate(Type=case_when((Type=='missense' & Gerp>4) ~ 'deleterious high', (Type=='missense' & Gerp<=4) ~ 'deleterious low', TRUE ~'synonymous')) %>%
+	select(CHROM, POS, Indiv, new_gt, Type) %>%
+	group_by(CHROM, POS, new_gt, Type) %>% summarize(count=n()) %>%
+	mutate(ancestral=case_when((new_gt=='0/0') ~ (count*2.0), (new_gt=='0/1') ~ (count*1.0), TRUE ~ 0), derived=case_when((new_gt=='1/1') ~ (count*2.0), (new_gt=='0/1') ~ (count*1.0), TRUE ~ 0)) %>%
+	group_by(CHROM, POS, Type) %>%  summarize(totanc=sum(ancestral), totder=sum(derived)) %>%
+	filter(totanc+totder==6 && totder>0) %>%  group_by(Type, totder) %>% summarize(count=n()) %>%
+  mutate(frac=case_when(Type=='deleterious high' ~ count/sum(count[Type=='deleterious high']),
+                        Type=='deleterious low' ~ count/sum(count[Type=='deleterious low']),
+                        Type=='synonymous' ~ count/sum(count[Type=='synonymous']))) %>%
+  ungroup() %>% mutate(Cat="Founders")
 
-tidy_full <- allgerp_tib  %>% mutate(Type="all", Region="WholeGenome") %>%
-            select(CHROM, POS, GERP, Type, Region)
+russian_tib <- tidy_vcf$gt %>% filter(!is.na(gt_GT)) %>%
+  	inner_join(tidy_vcf$fix) %>% inner_join(meta_tib) %>%
+  	filter(Cat=='Russia')  %>% inner_join(vep_tib) %>% inner_join(sift_tib) %>%
+  	rename(Type=VEP_TYPE) %>% filter(Type=='synonymous' | SIFT_TYPE == 'deleterious') %>%
+  	mutate(new_gt=case_when((ALT==AA & gt_GT=='0/0') ~'1/1', (ALT==AA & gt_GT=='1/1') ~'0/0', TRUE ~ gt_GT)) %>%
+    inner_join(gerp_tib) %>%
+  	mutate(Type=case_when((Type=='missense' & Gerp>4) ~ 'deleterious high', (Type=='missense' & Gerp<=4) ~ 'deleterious low', TRUE ~'synonymous')) %>%
+	  select(CHROM, POS, Indiv, new_gt, Type) %>%
+  	group_by(CHROM, POS, new_gt, Type) %>% summarize(count=n()) %>%
+  	mutate(ancestral=case_when((new_gt=='0/0') ~ (count*2.0), (new_gt=='0/1') ~ (count*1.0), TRUE ~ 0), derived=case_when((new_gt=='1/1') ~ (count*2.0), (new_gt=='0/1') ~ (count*1.0), TRUE ~ 0)) %>%
+  	group_by(CHROM, POS, Type) %>%  summarize(totanc=sum(ancestral), totder=sum(derived)) %>%
+  	filter(totanc+totder==28 && totder>0) %>%  group_by(Type, totder) %>% summarize(count=n()) %>%
+    mutate(frac=case_when(Type=='deleterious high' ~ count/sum(count[Type=='deleterious high']),
+                          Type=='deleterious low' ~ count/sum(count[Type=='deleterious low']),
+                          Type=='synonymous' ~ count/sum(count[Type=='synonymous']))) %>%
+    ungroup() %>% mutate(Cat="Russia")
 
-comb_tib=bind_rows(tidy_tab, tidy_full)
+# Combine both and factorize
+comb_tib<-bind_rows(founder_tib, russian_tib)
+comb_tib$Cat<-factor(comb_tib$Cat, levels = c("Russia", "Founders"))
+comb_tib$Type <- factor(comb_tib$Type, levels = c("synonymous", "deleterious low", "deleterious high"))
 
-#Add factors
-comb_tib$Type <- factor(comb_tib$Type, levels = c("modifier", "synonymous","tolerated", "deleterious", "nonsense","all"))
-comb_tib$Region <- factor(comb_tib$Region, levels = c("Genic", "WholeGenome"))
+
 
 ################################################################################
-# PLOT
-outfile=paste(plotdir, "FigureS4.revised.pdf", sep="")
+# PLOT (combine with facet)
+# Don't plot the bars for "zero derived"
 
-p<-ggplot(data=comb_tib, aes(x=GERP, fill=Type)) +
-    geom_density(alpha = 0.5, color=NA)+
-    facet_wrap(~Region, scales="free") +
-    scale_fill_manual(values=c("darkgrey", "lightblue", "seagreen4", "dodgerblue4","chocolate", "gray50")) +
+outfile=paste(plotdir,"FigureS5.pdf", sep="")
+
+p<-ggplot(comb_tib, aes(x=totder, y=frac, fill=Type)) +
+    geom_bar(position="dodge", stat="identity", alpha = 0.5) +
+    scale_fill_manual(values=c("lightblue", "dodgerblue4", "cadetblue4")) +
+    facet_wrap(~Cat, scales="free") +
+    labs(x="Derived alleles",y="Fraction of sites")+
     theme(panel.grid.major = element_line(colour = 'white'),
-          panel.background = element_rect(fill = '#f5f4e6', colour = '#FFFDF8'),
-          legend.box = "vertical",
-          panel.spacing = unit(2, "lines"),
-          legend.position="bottom",
-          legend.title=element_blank(),
-          strip.background = element_blank(),
-          strip.text.x = element_blank()) +
-    labs(title="", x="GERP score", y="Density") +
-    geom_vline(xintercept=4, colour="darkred",
-             linetype="longdash", size=1)
+      panel.background = element_rect(fill = '#f5f4e6', colour = '#FFFDF8'),
+      panel.spacing = unit(2, "lines"),
+      legend.position="bottom",
+      legend.title=element_blank(),
+      strip.background = element_blank(),
+      strip.text.x = element_blank())
 
-ggsave(
-  outfile,
-  plot = p,
-  scale = 1,
-  dpi = 300,
+ggsave(outfile,
+	plot = p,
+	scale = 1,
+	dpi = 300,
+	limitsize = TRUE,
   width=7.5,
-  height=4,
-  limitsize = TRUE)
+  height=4)
+
+  ############################
+  # Number of deleterious missense that have GERP > 4.
+  # Note that in this script we use the filtering MAC=>1 to not loose singleton
+  # sites in the SFS. The number given in the manuscript is for MAC=>2
+  sift_tib %>% inner_join(gerp_tib) %>% filter(SIFT_TYPE=="deleterious" & Gerp>4)
+  #2569 sites

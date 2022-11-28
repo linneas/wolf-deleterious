@@ -60,7 +60,7 @@ extr_gt$GenClass <- factor(extr_gt$GenClass, levels = c("Finland", "Russia", "No
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # # # # # Heterozygous sites
-output <- paste(plotdir,"Figure4A.pdf", sep="")
+output <- paste(plotdir,"Figure3A.pdf", sep="")
 
 pA<- ggplot(extr_gt, aes(x=GenClass, y=hetfrq))+
   geom_violin(fill="white", alpha=0.5)+
@@ -94,7 +94,7 @@ extr_gt %>% select(Type, hetfrq, GenClass) %>% group_by(Type, GenClass) %>% summ
 pB<-ggplot(extr_gt,aes(x=GenClass, y=homderfrq))+
 geom_violin(fill="white", alpha=0.5)+
 facet_grid(Type~factor(Grp, level=c("Reference","Scandinavia")), scales="free", space="free_x") +
-  labs(x=NULL,y="proportion of homozygous derived genotypes", tags="A")+
+  labs(x=NULL,y="proportion of homozygous derived genotypes", tags="B")+
   theme(panel.grid.major = element_line(colour = 'white'),
         panel.background = element_rect(fill = '#f5f4e6', colour = '#FFFDF8'),
         axis.text.x = element_text(angle = 45, hjust=1),
@@ -104,7 +104,7 @@ facet_grid(Type~factor(Grp, level=c("Reference","Scandinavia")), scales="free", 
   theme(legend.key=element_rect(fill='white', colour='NA')) +
 	geom_point(colour="grey", size=1, alpha=0.5)
 
-output<-paste(plotdir,"Figure4B.pdf", sep="")
+output<-paste(plotdir,"Figure3B.pdf", sep="")
 ggsave(
   output,
   plot = pB,
