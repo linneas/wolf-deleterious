@@ -91,8 +91,8 @@ russian_tib <- combined_gt %>% filter(!is.na(gt_GT)) %>%
     ungroup() %>% mutate(Cat="Russia")
 
 # Combine both and factorize
-comb_tib<-bind_rows(founder_tib, russian_tib)
-comb_tib$Cat<-factor(comb_tib$Cat, levels = c("Russia", "Founders"))
+comb_tib<-bind_rows(founder_tib, russian_tib) %>% mutate(Panel=ifelse(Cat=="Russia", "A", "B"))
+comb_tib$Panel<-factor(comb_tib$Panel, levels = c("A", "B"))
 comb_tib$Type <- factor(comb_tib$Type, levels = c("modifier", "synonymous", "tolerated", "deleterious", "nonsense"))
 
 
@@ -101,22 +101,21 @@ comb_tib$Type <- factor(comb_tib$Type, levels = c("modifier", "synonymous", "tol
 # PLOT (combine with facet)
 # Don't plot the bars for "zero derived"
 
-outfile=paste(plotdir,"Figure1.revision2.pdf", sep="")
+outfile=paste(plotdir,"Figure1.revision3.pdf", sep="")
 
 p<-ggplot(comb_tib, aes(x=totder, y=frac, fill=Type)) +
-    geom_bar(position="dodge", stat="identity", alpha = 0.5) +
+    geom_bar(position="dodge", stat="identity", alpha = 0.8) +
     scale_fill_manual(values=c("darkgray","lightblue", "seagreen4", "dodgerblue4", "chocolate")) +
-    facet_wrap(~Cat, scales="free") +
+    facet_wrap(~Panel, scales="free") +
     labs(x="Derived alleles",y="Fraction of sites")+
     theme(panel.grid.major = element_line(colour = 'white'),
       panel.background = element_rect(fill = '#f5f4e6', colour = '#FFFDF8'),
       panel.spacing = unit(2, "lines"),
       legend.position="bottom",
       legend.title=element_blank(),
-      strip.background = element_blank(),
-      strip.text.x = element_blank())+
-    annotate("text", x=-1, y=0.3, label= "A")+
-    +labs(tags="A")
+      strip.background = element_rect(fill='white'),
+      strip.text = element_text(colour = 'black', hjust = 0, size=12))
+
 
 ggsave(outfile,
 	plot = p,
